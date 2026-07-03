@@ -1,0 +1,35 @@
+# ROS 2 Build Artefacts
+build/
+install/
+log/
+.colcon/
+
+# Python cache / compiled files
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+nosetests.xml
+pylintlog
+.tox/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE / Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Agent guidelines
+CLAUDE.md
+

@@ -1,0 +1,39 @@
+# ============================================================================
+#  RYUGU ROV — ArduSub v4.5.7 Parameter Reference
+# ============================================================================
+#
+#  This file documents the ArduSub parameters relevant to the RYUGU ROV
+#  hardware configuration. These are NOT set by MAVROS — they are set on
+#  the Pixhawk itself via MAVProxy, QGroundControl, or `ros2 service call`
+#  to /mavros/param/set.
+#
+#  Hardware Map:
+#    AUX 1–6  → 6 Thrusters (DSHOT ESCs)
+#    MAIN 1   → Gripper Servo (MG996R)
+# ============================================================================
+
+# ── ArduSub Frame Type ──────────────────────────────────────────────────────
+# FRAME_CONFIG: 1 = BlueROV2 Heavy (vectored-6DOF), custom = 0
+# Set this on the Pixhawk to match your thruster layout.
+ardusub:
+  frame_config: 1  # Adjust to match your frame (0=custom, 1=vectored6dof)
+
+# ── Servo Outputs (Reference — set via Pixhawk parameters) ─────────────────
+# SERVO9_FUNCTION  = 33 (Motor1)   → AUX 1
+# SERVO10_FUNCTION = 34 (Motor2)   → AUX 2
+# SERVO11_FUNCTION = 35 (Motor3)   → AUX 3
+# SERVO12_FUNCTION = 36 (Motor4)   → AUX 4
+# SERVO13_FUNCTION = 37 (Motor5)   → AUX 5
+# SERVO14_FUNCTION = 38 (Motor6)   → AUX 6
+# SERVO1_FUNCTION  = 59 (Gripper)  → MAIN 1
+
+# ── Gripper Configuration (Reference — set via Pixhawk parameters) ─────────
+# GRIP_ENABLE  = 1
+# GRIP_TYPE    = 1 (Servo)
+# SERVO1_MIN   = 1000
+# SERVO1_MAX   = 2000
+# SERVO1_TRIM  = 1500
+
+# ── DSHOT Configuration (Reference — set via Pixhawk parameters) ───────────
+# MOT_PWM_TYPE = 4 (DShot150) or 5 (DShot300) or 6 (DShot600)
+# BRD_PWM_COUNT = 0 (All AUX outputs as DSHOT, no MAIN outputs as PWM motors)
