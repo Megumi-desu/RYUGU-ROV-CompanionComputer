@@ -7,7 +7,7 @@ so the GCS laptop can display them in a browser, VLC, or OpenCV.
 
 Streams:
   Front Camera → http://192.168.1.10:8554/video  (/dev/video0)
-  Bottom Camera → http://192.168.1.10:8555/video  (/dev/video1)
+  Bottom Camera → http://192.168.1.10:8555/video  (/dev/video2)
 
 Robustness:
   - If a camera is disconnected at startup, its stream serves a static
@@ -170,15 +170,21 @@ class CameraCapture:
                 cap.release()
                 return False
 
-            # Configure capture properties
+            # ── Set MJPEG fourcc FIRST ──────────────────────────────
+            # This MUST be set before width/height/FPS.  On Linux V4L2,
+            # setting resolution first locks the camera into the default
+            # YUYV (uncompressed) format, which saturates USB 2.0 bus
+            # bandwidth and forces the driver to throttle FPS (e.g. 7.5).
+            # Setting FOURCC first selects compressed MJPEG from the start,
+            # freeing enough USB bandwidth for stable 30 FPS on both cameras.
+            cap.set(cv2.CAP_PROP_FOURCC,
+                    cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
+
+            # Configure remaining capture properties
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             cap.set(cv2.CAP_PROP_FPS, self.fps)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)   # minimise latency
-
-            # Try MJPG fourcc for USB cameras (usually faster than YUYV)
-            cap.set(cv2.CAP_PROP_FOURCC,
-                    cv2.VideoWriter.fourcc('M', 'J', 'P', 'G'))
 
             self._cap = cap
             with self._lock:
@@ -398,7 +404,7 @@ class WebcamStreamerNode(Node):
         self.declare_parameter('front_port', 8554)
         self.declare_parameter('bottom_port', 8555)
         self.declare_parameter('front_dev', '/dev/video0')
-        self.declare_parameter('bottom_dev', '/dev/video1')
+        self.declare_parameter('bottom_dev', '/dev/video2')
         self.declare_parameter('width', 640)
         self.declare_parameter('height', 480)
         self.declare_parameter('fps', 30)

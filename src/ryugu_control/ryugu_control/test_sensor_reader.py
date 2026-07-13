@@ -6,11 +6,11 @@ Subscribes to MAVROS sensor topics and displays clean, human-readable
 data that refreshes in-place every 100ms.
 
 Subscriptions:
-  /mavros/imu/data               (sensor_msgs/msg/Imu)
-  /mavros/local_position/pose    (geometry_msgs/msg/PoseStamped)
+  /mavros/imu/data                (sensor_msgs/msg/Imu)
+  /mavros/local_position/pose     (geometry_msgs/msg/PoseStamped)
   /mavros/global_position/rel_alt (std_msgs/msg/Float64)
-  /mavros/battery/battery        (sensor_msgs/msg/BatteryState)
-  /mavros/state                  (mavros_msgs/msg/State)
+  /mavros/battery/battery         (sensor_msgs/msg/BatteryState)
+  /mavros/state                   (mavros_msgs/msg/State)
 
 Displayed Data:
   - Roll / Pitch / Yaw (degrees) from EKF-fused orientation

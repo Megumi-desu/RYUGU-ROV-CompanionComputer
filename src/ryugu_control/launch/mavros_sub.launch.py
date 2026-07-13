@@ -115,15 +115,15 @@ def generate_launch_description():
                 ],
 
                 # ── Connection timers ──
-                'conn/heartbeat_rate':  1.0,   # Hz
-                'conn/timeout':        10.0,   # seconds
-                'conn/timesync_rate':    10.0,  # Hz
+                'conn/heartbeat_rate': 1.0,   # Hz
+                'conn/timeout':        10.0,  # seconds
+                'conn/timesync_rate':  10.0,  # Hz
 
                 # ── IMU ──
-                'imu/frame_id':          'base_link',
-                'imu/linear_acceleration_stdev':  0.0003,
-                'imu/angular_velocity_stdev':     0.0003,
-                'imu/orientation_stdev':          1.0,
+                'imu/frame_id':                  'base_link',
+                'imu/linear_acceleration_stdev': 0.0003,
+                'imu/angular_velocity_stdev':    0.0003,
+                'imu/orientation_stdev':         1.0,
 
                 # ── Local position ──
                 'local_position/frame_id': 'map',

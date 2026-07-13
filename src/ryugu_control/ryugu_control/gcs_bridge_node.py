@@ -280,6 +280,9 @@ class GCSBridgeNode(Node):
         self._tx_packet_count = 0
         self._crc_error_count = 0
 
+        # Motion logging throttle (avoid CLI flood at 10–20 Hz input rate)
+        self._last_motion_log_time: float = 0.0
+
         # ── Callback group (reentrant for multi-threaded executor) ─────
         self._cb_group = ReentrantCallbackGroup()
 
@@ -445,6 +448,21 @@ class GCSBridgeNode(Node):
         with self._state_lock:
             self._latest_motion = values
 
+        # ── Throttled motion logging ──────────────────────────────────
+        # Only log when the pilot is actively commanding (at least one
+        # axis non-zero), and at most once every 0.5 s to avoid flooding
+        # the terminal at 10–20 Hz input rates.
+        surge, sway, heave, yaw, pitch, roll = values
+        if any(v != 0 for v in values):
+            now = time.monotonic()
+            if now - self._last_motion_log_time >= 0.5:
+                self._last_motion_log_time = now
+                self.get_logger().info(
+                    f'🎮 Motion: '
+                    f'surge={surge:+5d}  sway={sway:+5d}  heave={heave:+5d}  '
+                    f'yaw={yaw:+5d}  pitch={pitch:+5d}  roll={roll:+5d}'
+                )
+
     # ── Mode handler ─────────────────────────────────────────────────────
     def _handle_mode(self, payload: bytes):
         """CMD_MODE (0x82): payload = <B (mode_id).  Calls /mavros/set_mode."""
@@ -561,7 +579,33 @@ class GCSBridgeNode(Node):
         rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
 
         if future.result() is not None and future.result().success:
-            self.get_logger().info(f'{label} successful — sending ACK')
+            # ── Prominent ARM / DISARM confirmation ──────────────────
+            if arm:
+                self.get_logger().info(
+                    '\n'
+                    '  \033[1;32m╔══════════════════════════════════════════════╗\033[0m\n'
+                    '  \033[1;32m║   █████╗ ██████╗ ███╗   ███╗███████╗██████╗  ║\033[0m\n'
+                    '  \033[1;32m║  ██╔══██╗██╔══██╗████╗ ████║██╔════╝██╔══██╗ ║\033[0m\n'
+                    '  \033[1;32m║  ███████║██████╔╝██╔████╔██║█████╗  ██║  ██║ ║\033[0m\n'
+                    '  \033[1;32m║  ██╔══██║██╔══██╗██║╚██╔╝██║██╔══╝  ██║  ██║ ║\033[0m\n'
+                    '  \033[1;32m║  ██║  ██║██║  ██║██║ ╚═╝ ██║███████╗██████╔╝ ║\033[0m\n'
+                    '  \033[1;32m║  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═════╝  ║\033[0m\n'
+                    '  \033[1;32m║         ROV IS ARMED — THRUSTERS LIVE        ║\033[0m\n'
+                    '  \033[1;32m╚══════════════════════════════════════════════╝\033[0m'
+                )
+            else:
+                self.get_logger().info(
+                    '\n'
+                    '  \033[1;33m╔══════════════════════════════════════════════════════╗\033[0m\n'
+                    '  \033[1;33m║     ██████╗ ██╗███████╗ █████╗ ██████╗ ███╗   ███╗   ║\033[0m\n'
+                    '  \033[1;33m║     ██╔══██╗██║██╔════╝██╔══██╗██╔══██╗████╗ ████║   ║\033[0m\n'
+                    '  \033[1;33m║     ██║  ██║██║███████╗███████║██████╔╝██╔████╔██║   ║\033[0m\n'
+                    '  \033[1;33m║     ██║  ██║██║╚════██║██╔══██║██╔══██╗██║╚██╔╝██║   ║\033[0m\n'
+                    '  \033[1;33m║     ██████╔╝██║███████║██║  ██║██║  ██║██║ ╚═╝ ██║   ║\033[0m\n'
+                    '  \033[1;33m║     ╚═════╝ ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝   ║\033[0m\n'
+                    '  \033[1;33m║           ROV DISARMED — THRUSTERS SAFE              ║\033[0m\n'
+                    '  \033[1;33m╚══════════════════════════════════════════════════════╝\033[0m'
+                )
             self._send_ack(CMD_ARM)
         else:
             self.get_logger().error(f'{label} failed — '

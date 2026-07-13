@@ -10,7 +10,7 @@ Hardware:
   - Pixhawk 2.4.8 on /dev/ttyACM0 @ 115200 baud
   - 6 Thrusters (DSHOT) on AUX 1–6
   - Gripper Servo (MG996R) on MAIN 1
-  - 2 USB Webcams on /dev/video0 and /dev/video1
+  - 2 USB Webcams on /dev/video0 and /dev/video2
 
 Network:
   - Jetson Orin Nano: 192.168.1.10
@@ -114,7 +114,7 @@ def generate_launch_description():
         description='Front camera V4L2 device.',
     )
     bottom_dev_arg = DeclareLaunchArgument(
-        'bottom_dev', default_value='/dev/video1',
+        'bottom_dev', default_value='/dev/video2',
         description='Bottom camera V4L2 device.',
     )
     front_port_arg = DeclareLaunchArgument(
@@ -247,7 +247,7 @@ def generate_launch_description():
             'width':        LaunchConfiguration('cam_width'),
             'height':       LaunchConfiguration('cam_height'),
             'fps':          LaunchConfiguration('cam_fps'),
-            'jpeg_quality': 70,
+            'jpeg_quality':   70,
         }],
     )
 

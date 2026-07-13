@@ -4,7 +4,7 @@
   <name>ryugu_control</name>
   <version>0.1.0</version>
   <description>ROS2 control package for RYUGU ROV — underwater vehicle control via MAVROS and ArduSub v4.5.7</description>
-  <maintainer email="icad@ryugu-rov.local">ICAD</maintainer>
+  <maintainer email="rachmatgifari99@gmail.com">rahmat</maintainer>
   <license>MIT</license>
 
   <!-- Build tool -->
