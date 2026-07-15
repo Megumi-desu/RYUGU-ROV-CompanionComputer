@@ -13,15 +13,15 @@ Architecture:
                                                       Pixhawk 2.4.8 (ArduSub v4.5.7)
 
 Uplink (GCS → Pixhawk):
-  - CMD_MOTION  (0x81) → /mavros/manual_control/send  @ 10 Hz
+  - CMD_MOTION  (0x81) → /mavros/manual_control/send   @ 10 Hz
   - CMD_MODE    (0x82) → /mavros/set_mode              (ACK)
   - CMD_GRIPPER (0x83) → /mavros/cmd/command           (MAV_CMD_DO_SET_SERVO)
   - CMD_BALLAST (0x84) → parsed, no hardware action
   - CMD_ARM     (0x85) → /mavros/cmd/arming            (ACK)
-  - CMD_ESTOP   (0x86) → disarm immediately             (ACK)
+  - CMD_ESTOP   (0x86) → disarm immediately            (ACK)
 
 Downlink (Pixhawk → GCS):
-  - TELEM_IMU    (0x01): pitch, roll, yaw (°)          @ 20 Hz
+  - TELEM_IMU    (0x01): pitch, roll, yaw (°)           @ 20 Hz
   - TELEM_DEPTH  (0x02): depth_m, altitude_m            @ 20 Hz
   - TELEM_STATUS (0x03): battery, arm, mode, thrusters  @ 20 Hz
 
@@ -37,12 +37,14 @@ Usage:
 import math
 import socket
 import struct
+import subprocess
 import threading
 import time
 from typing import Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
@@ -265,6 +267,7 @@ class GCSBridgeNode(Node):
         self._depth_m: float   = 0.0
         self._altitude_m: float = 0.0
         self._battery_v: float  = 0.0
+        self._pose_received: bool = False  # True once EKF pose arrives (requires GPS)
         self._arm_state: bool   = False
         self._mode_id: int      = 0
         self._rc_channels: list[int] = [0] * 16
@@ -299,22 +302,25 @@ class GCSBridgeNode(Node):
         # Pose (EKF-fused orientation for TELEM_IMU)
         self._pose_sub = self.create_subscription(
             PoseStamped, '/mavros/local_position/pose',
-            self._pose_callback, 10, callback_group=self._cb_group)
+            self._pose_callback, qos_profile_sensor_data,
+            callback_group=self._cb_group)
 
         # IMU data (fallback for orientation)
         self._imu_sub = self.create_subscription(
-            Imu, '/mavros/imu_data',
-            self._imu_callback, 10, callback_group=self._cb_group)
+            Imu, '/mavros/imu/data',
+            self._imu_callback, qos_profile_sensor_data, callback_group=self._cb_group)
 
         # Altitude / depth
         self._alt_sub = self.create_subscription(
             Altitude, '/mavros/altitude',
-            self._altitude_callback, 10, callback_group=self._cb_group)
+            self._altitude_callback, qos_profile_sensor_data,
+            callback_group=self._cb_group)
 
         # Battery
         self._batt_sub = self.create_subscription(
             BatteryState, '/mavros/battery',
-            self._battery_callback, 10, callback_group=self._cb_group)
+            self._battery_callback, qos_profile_sensor_data,
+            callback_group=self._cb_group)
 
         # Vehicle state (arm, mode)
         self._state_sub = self.create_subscription(
@@ -613,27 +619,65 @@ class GCSBridgeNode(Node):
 
     # ── E-STOP handler ───────────────────────────────────────────────────
     def _handle_estop(self):
-        """CMD_ESTOP (0x86): empty payload.  Immediately disarm via arming service."""
+        """
+        CMD_ESTOP (0x86): empty payload.
+
+        Emergency stop sequence:
+          1. Disarm the Pixhawk immediately via the arming service.
+          2. Send an ACK back to the GCS so the operator knows the command
+             was processed.
+          3. Sleep briefly to allow the UDP ACK packet to flush through the
+             network stack before the interface goes down.
+          4. Power off the Jetson Orin Nano via ``sudo poweroff``.
+
+        .. important::
+           The Linux user running this ROS2 node **must** have passwordless
+           sudo permissions for ``/usr/sbin/poweroff``.  Add the following
+           line to ``/etc/sudoers`` (via ``visudo``)::
+
+               <username> ALL=(ALL) NOPASSWD: /usr/sbin/poweroff
+
+           Replace ``<username>`` with the actual user account (e.g.
+           ``icad`` or ``jetson``).
+        """
         self.get_logger().warn('⚠ E-STOP TRIGGERED — disarming immediately!')
 
+        # Step 1: Disarm the Pixhawk -------------------------------------------
         if not self._arming_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().error('E-STOP: arming service not available!')
-            return
-
-        req = CommandBool.Request()
-        req.value = False
-
-        future = self._arming_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
-
-        if future.result() is not None and future.result().success:
-            self.get_logger().info('E-STOP: disarm successful — sending ACK')
-            self._send_ack(CMD_ESTOP)
         else:
-            self.get_logger().error(
-                'E-STOP: disarm FAILED — check flight controller connection!')
-            # Still send ACK so GCS knows we tried
-            self._send_ack(CMD_ESTOP)
+            req = CommandBool.Request()
+            req.value = False
+
+            future = self._arming_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+
+            if future.result() is not None and future.result().success:
+                self.get_logger().info('E-STOP: disarm successful')
+            else:
+                self.get_logger().error(
+                    'E-STOP: disarm FAILED — check flight controller connection!')
+
+        # Step 2: Acknowledge the E-STOP command to the GCS --------------------
+        self._send_ack(CMD_ESTOP)
+        self.get_logger().info('E-STOP: ACK sent to GCS')
+
+        # Step 3: Flush the UDP packet before the network goes down ------------
+        time.sleep(0.5)
+
+        # Step 4: Power off the Jetson Orin Nano ------------------------------
+        self.get_logger().warn('E-STOP: shutting down Jetson NOW!')
+        try:
+            subprocess.run(
+                ['sudo', 'poweroff'],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            self.get_logger().fatal(
+                'E-STOP: "poweroff" not found — '
+                'Jetson shutdown FAILED!  Power off manually.')
 
     # ═══════════════════════════════════════════════════════════════════════
     #  MAVROS subscriber callbacks
@@ -643,27 +687,21 @@ class GCSBridgeNode(Node):
         q = msg.pose.orientation
         roll, pitch, yaw = quaternion_to_euler_deg(q.x, q.y, q.z, q.w)
         with self._state_lock:
+            self._pose_received = True
             self._roll  = roll
             self._pitch = pitch
             self._yaw   = yaw
 
     def _imu_callback(self, msg: Imu):
         """
-        Fallback IMU orientation — only used if PoseStamped hasn't been received
-        recently.  Overwritten by _pose_callback on each pose update.
+        Fallback IMU orientation — used only when EKF pose is unavailable
+        (e.g. indoors without GPS).  Once _pose_callback has received a
+        valid EKF estimate it sets _pose_received and IMU updates stop.
         """
-        # We prioritise EKF pose, so this is a secondary source.
-        # For simplicity, we just store it — the telemetry timer reads whichever
-        # was written last.  Since pose callback typically runs at the same rate,
-        # this acts as a fallback.
         q = msg.orientation
         roll, pitch, yaw = quaternion_to_euler_deg(q.x, q.y, q.z, q.w)
-        # Only update if we haven't received a pose recently (tracked via flag)
-        # We use a simple approach: always update from IMU, but pose callback
-        # runs after and overwrites with the better EKF estimate.
         with self._state_lock:
-            # If no pose has been received (roll/pitch/yaw all zero), use IMU
-            if self._roll == 0.0 and self._pitch == 0.0 and self._yaw == 0.0:
+            if not self._pose_received:
                 self._roll  = roll
                 self._pitch = pitch
                 self._yaw   = yaw
