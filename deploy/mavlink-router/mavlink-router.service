@@ -1,0 +1,40 @@
+#
+# /etc/systemd/system/mavlink-router.service
+# RYUGU ROV — mavlink-router systemd unit
+#
+# Starts mavlink-router automatically at boot, before MAVROS/ROS2 nodes,
+# so the UDP endpoints are ready when the ROS2 stack comes up.
+#
+# Deploy with:
+#   sudo cp deploy/mavlink-router/mavlink-router.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable mavlink-router
+#   sudo systemctl start  mavlink-router
+#
+
+[Unit]
+Description=MAVLink Router (Pixhawk → MAVROS + QGroundControl)
+Documentation=https://github.com/mavlink-router/mavlink-router
+After=network.target
+Wants=network.target
+# Uncomment the line below if your Pixhawk enumerates as a fixed device
+# and you want the service to wait for it explicitly:
+# After=dev-ttyACM0.device
+# Wants=dev-ttyACM0.device
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mavlink-routerd -c /etc/mavlink-router/main.conf
+Restart=on-failure
+RestartSec=5
+User=root
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening (optional — tighten as needed)
+# NoNewPrivileges=yes
+# ProtectSystem=full
+# ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
