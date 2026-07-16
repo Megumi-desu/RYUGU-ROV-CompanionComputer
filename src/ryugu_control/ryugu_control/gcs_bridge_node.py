@@ -52,7 +52,6 @@ from rclpy.executors import MultiThreadedExecutor
 from mavros_msgs.msg import ManualControl, RCOut, State, Altitude
 from mavros_msgs.srv import CommandBool, CommandLong, SetMode
 from sensor_msgs.msg import BatteryState, Imu
-from geometry_msgs.msg import PoseStamped
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  CRC-16/CCITT-FALSE  (poly=0x1021, init=0xFFFF, no reflection)
@@ -267,7 +266,6 @@ class GCSBridgeNode(Node):
         self._depth_m: float   = 0.0
         self._altitude_m: float = 0.0
         self._battery_v: float  = 0.0
-        self._pose_received: bool = False  # True once EKF pose arrives (requires GPS)
         self._arm_state: bool   = False
         self._mode_id: int      = 0
         self._rc_channels: list[int] = [0] * 16
@@ -299,13 +297,7 @@ class GCSBridgeNode(Node):
         self._command_cli = self.create_client(CommandLong, '/mavros/cmd/command')
 
         # ── Subscribers ────────────────────────────────────────────────
-        # Pose (EKF-fused orientation for TELEM_IMU)
-        self._pose_sub = self.create_subscription(
-            PoseStamped, '/mavros/local_position/pose',
-            self._pose_callback, qos_profile_sensor_data,
-            callback_group=self._cb_group)
-
-        # IMU data (fallback for orientation)
+        # IMU data (primary source for orientation — always active, GPS-independent)
         self._imu_sub = self.create_subscription(
             Imu, '/mavros/imu/data',
             self._imu_callback, qos_profile_sensor_data, callback_group=self._cb_group)
@@ -494,8 +486,10 @@ class GCSBridgeNode(Node):
         req.base_mode = 0
 
         future = self._setmode_cli.call_async(req)
-        # Wait synchronously in the receiver thread
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # Wait safely without spinning — MultiThreadedExecutor handles it
+        start_time = time.monotonic()
+        while not future.done() and (time.monotonic() - start_time) < 3.0:
+            time.sleep(0.01)
 
         if future.result() is not None and future.result().mode_sent:
             self.get_logger().info(f'Mode set to "{mode_str}" — sending ACK')
@@ -544,7 +538,10 @@ class GCSBridgeNode(Node):
         req.param7 = 0.0
 
         future = self._command_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # Wait safely without spinning — MultiThreadedExecutor handles it
+        start_time = time.monotonic()
+        while not future.done() and (time.monotonic() - start_time) < 3.0:
+            time.sleep(0.01)
 
         if future.result() is not None and future.result().success:
             self.get_logger().info('Gripper command accepted')
@@ -582,7 +579,10 @@ class GCSBridgeNode(Node):
         req.value = arm
 
         future = self._arming_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # Wait safely without spinning — MultiThreadedExecutor handles it
+        start_time = time.monotonic()
+        while not future.done() and (time.monotonic() - start_time) < 3.0:
+            time.sleep(0.01)
 
         if future.result() is not None and future.result().success:
             # ── Prominent ARM / DISARM confirmation ──────────────────
@@ -650,7 +650,10 @@ class GCSBridgeNode(Node):
             req.value = False
 
             future = self._arming_cli.call_async(req)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+            # Wait safely without spinning — MultiThreadedExecutor handles it
+            start_time = time.monotonic()
+            while not future.done() and (time.monotonic() - start_time) < 3.0:
+                time.sleep(0.01)
 
             if future.result() is not None and future.result().success:
                 self.get_logger().info('E-STOP: disarm successful')
@@ -682,29 +685,14 @@ class GCSBridgeNode(Node):
     # ═══════════════════════════════════════════════════════════════════════
     #  MAVROS subscriber callbacks
     # ═══════════════════════════════════════════════════════════════════════
-    def _pose_callback(self, msg: PoseStamped):
-        """Store EKF-fused orientation for TELEM_IMU."""
-        q = msg.pose.orientation
-        roll, pitch, yaw = quaternion_to_euler_deg(q.x, q.y, q.z, q.w)
-        with self._state_lock:
-            self._pose_received = True
-            self._roll  = roll
-            self._pitch = pitch
-            self._yaw   = yaw
-
     def _imu_callback(self, msg: Imu):
-        """
-        Fallback IMU orientation — used only when EKF pose is unavailable
-        (e.g. indoors without GPS).  Once _pose_callback has received a
-        valid EKF estimate it sets _pose_received and IMU updates stop.
-        """
+        """Store orientation (roll, pitch, yaw) from MAVROS IMU data."""
         q = msg.orientation
         roll, pitch, yaw = quaternion_to_euler_deg(q.x, q.y, q.z, q.w)
         with self._state_lock:
-            if not self._pose_received:
-                self._roll  = roll
-                self._pitch = pitch
-                self._yaw   = yaw
+            self._roll  = roll
+            self._pitch = pitch
+            self._yaw   = yaw
 
     def _altitude_callback(self, msg: Altitude):
         """

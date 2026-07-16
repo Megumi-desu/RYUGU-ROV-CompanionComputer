@@ -102,6 +102,7 @@ def generate_launch_description():
 
                 # ── Plug-in denylist (disable unused plugins to save CPU) ──
                 'plugin_denylist': [
+                    'global_position',
                     'actuator_control',
                     'obstacle_distance',
                     'vision_speed_estimate',
