@@ -1,7 +1,4 @@
 # ROS 2 Build Artefacts
-build/
-install/
-log/
 .colcon/
 
 # Python cache / compiled files

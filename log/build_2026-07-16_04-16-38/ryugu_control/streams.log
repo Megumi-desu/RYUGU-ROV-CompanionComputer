@@ -1,0 +1,21 @@
+[2.198s] Invoking command in '/home/icad/RYUGU-ROV/build/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV/build/ryugu_control/build --no-deps symlink_data
+[2.815s] running develop
+[3.205s] running egg_info
+[3.205s] writing ryugu_control.egg-info/PKG-INFO
+[3.206s] writing dependency_links to ryugu_control.egg-info/dependency_links.txt
+[3.207s] writing entry points to ryugu_control.egg-info/entry_points.txt
+[3.207s] writing requirements to ryugu_control.egg-info/requires.txt
+[3.207s] writing top-level names to ryugu_control.egg-info/top_level.txt
+[3.212s] reading manifest file 'ryugu_control.egg-info/SOURCES.txt'
+[3.213s] writing manifest file 'ryugu_control.egg-info/SOURCES.txt'
+[3.217s] running build_ext
+[3.217s] Creating /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu-control.egg-link (link to .)
+[3.219s] Installing gcs_bridge_node script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.220s] Installing test_arming_mode script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.220s] Installing test_sensor_reader script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.220s] Installing test_thrusters_gripper script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.221s] Installing webcam_streamer script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.221s] 
+[3.221s] Installed /home/icad/RYUGU-ROV/build/ryugu_control
+[3.226s] running symlink_data
+[3.313s] Invoked command in '/home/icad/RYUGU-ROV/build/ryugu_control' returned '0': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV/build/ryugu_control/build --no-deps symlink_data

@@ -1,0 +1,7 @@
+[console_scripts]
+gcs_bridge_node = ryugu_control.gcs_bridge_node:main
+test_arming_mode = ryugu_control.test_arming_mode:main
+test_sensor_reader = ryugu_control.test_sensor_reader:main
+test_thrusters_gripper = ryugu_control.test_thrusters_gripper:main
+webcam_streamer = ryugu_control.webcam_streamer:main
+

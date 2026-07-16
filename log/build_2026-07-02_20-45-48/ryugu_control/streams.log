@@ -1,0 +1,38 @@
+[1.639s] Invoking command in '/home/icad/RYUGU-ROV/build/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/icad/RYUGU-ROV/build/ryugu_control/build
+[2.315s] running develop
+[2.731s] Removing /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu-control.egg-link (link to .)
+[2.827s] Invoked command in '/home/icad/RYUGU-ROV/build/ryugu_control' returned '0': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/icad/RYUGU-ROV/build/ryugu_control/build
+[2.832s] Invoking command in '/home/icad/RYUGU-ROV/src/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ryugu_control build --build-base /home/icad/RYUGU-ROV/build/ryugu_control/build install --record /home/icad/RYUGU-ROV/build/ryugu_control/install.log --install-scripts $base/lib/ryugu_control --single-version-externally-managed install_data --force
+[3.435s] running egg_info
+[3.439s] writing ../../build/ryugu_control/ryugu_control.egg-info/PKG-INFO
+[3.442s] writing dependency_links to ../../build/ryugu_control/ryugu_control.egg-info/dependency_links.txt
+[3.444s] writing entry points to ../../build/ryugu_control/ryugu_control.egg-info/entry_points.txt
+[3.446s] writing requirements to ../../build/ryugu_control/ryugu_control.egg-info/requires.txt
+[3.448s] writing top-level names to ../../build/ryugu_control/ryugu_control.egg-info/top_level.txt
+[3.460s] reading manifest file '../../build/ryugu_control/ryugu_control.egg-info/SOURCES.txt'
+[3.464s] writing manifest file '../../build/ryugu_control/ryugu_control.egg-info/SOURCES.txt'
+[3.465s] running build
+[3.466s] running build_py
+[3.466s] creating /home/icad/RYUGU-ROV/build/ryugu_control/build
+[3.467s] creating /home/icad/RYUGU-ROV/build/ryugu_control/build/lib
+[3.467s] creating /home/icad/RYUGU-ROV/build/ryugu_control/build/lib/ryugu_control
+[3.468s] copying ryugu_control/test_arming_mode.py -> /home/icad/RYUGU-ROV/build/ryugu_control/build/lib/ryugu_control
+[3.469s] copying ryugu_control/__init__.py -> /home/icad/RYUGU-ROV/build/ryugu_control/build/lib/ryugu_control
+[3.469s] running install
+[3.469s] running install_lib
+[3.470s] creating /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu_control
+[3.471s] copying /home/icad/RYUGU-ROV/build/ryugu_control/build/lib/ryugu_control/test_arming_mode.py -> /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu_control
+[3.471s] copying /home/icad/RYUGU-ROV/build/ryugu_control/build/lib/ryugu_control/__init__.py -> /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu_control
+[3.472s] byte-compiling /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/test_arming_mode.py to test_arming_mode.cpython-310.pyc
+[3.478s] byte-compiling /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/__init__.py to __init__.cpython-310.pyc
+[3.481s] running install_data
+[3.481s] copying resource/ryugu_control -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ament_index/resource_index/packages
+[3.481s] copying package.xml -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control
+[3.481s] copying launch/mavros_sub.launch.py -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/launch
+[3.482s] copying config/ardusub_params.yaml -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/config
+[3.482s] running install_egg_info
+[3.491s] Copying ../../build/ryugu_control/ryugu_control.egg-info to /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu_control-0.1.0-py3.10.egg-info
+[3.493s] running install_scripts
+[3.553s] Installing test_arming_mode script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.554s] writing list of installed files to '/home/icad/RYUGU-ROV/build/ryugu_control/install.log'
+[3.649s] Invoked command in '/home/icad/RYUGU-ROV/src/ryugu_control' returned '0': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ryugu_control build --build-base /home/icad/RYUGU-ROV/build/ryugu_control/build install --record /home/icad/RYUGU-ROV/build/ryugu_control/install.log --install-scripts $base/lib/ryugu_control --single-version-externally-managed install_data --force

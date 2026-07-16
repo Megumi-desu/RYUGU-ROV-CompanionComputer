@@ -1,0 +1,31 @@
+running develop
+running egg_info
+creating ryugu_control.egg-info
+writing ryugu_control.egg-info/PKG-INFO
+writing dependency_links to ryugu_control.egg-info/dependency_links.txt
+writing entry points to ryugu_control.egg-info/entry_points.txt
+writing requirements to ryugu_control.egg-info/requires.txt
+writing top-level names to ryugu_control.egg-info/top_level.txt
+writing manifest file 'ryugu_control.egg-info/SOURCES.txt'
+reading manifest file 'ryugu_control.egg-info/SOURCES.txt'
+writing manifest file 'ryugu_control.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu-control.egg-link (link to .)
+Installing gcs_bridge_node script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+Installing test_arming_mode script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+Installing test_sensor_reader script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+Installing test_thrusters_gripper script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+Installing webcam_streamer script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+
+Installed /home/icad/RYUGU-ROV/build/ryugu_control
+running symlink_data
+creating /home/icad/RYUGU-ROV/install/ryugu_control/share/ament_index
+creating /home/icad/RYUGU-ROV/install/ryugu_control/share/ament_index/resource_index
+creating /home/icad/RYUGU-ROV/install/ryugu_control/share/ament_index/resource_index/packages
+symbolically linking /home/icad/RYUGU-ROV/build/ryugu_control/resource/ryugu_control -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ament_index/resource_index/packages
+symbolically linking /home/icad/RYUGU-ROV/build/ryugu_control/package.xml -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control
+creating /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/launch
+symbolically linking /home/icad/RYUGU-ROV/build/ryugu_control/launch/ryugu_production.launch.py -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/launch
+symbolically linking /home/icad/RYUGU-ROV/build/ryugu_control/launch/mavros_sub.launch.py -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/launch
+creating /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/config
+symbolically linking /home/icad/RYUGU-ROV/build/ryugu_control/config/ardusub_params.yaml -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/config

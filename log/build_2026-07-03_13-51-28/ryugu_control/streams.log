@@ -1,0 +1,24 @@
+[2.235s] Invoking command in '/home/icad/RYUGU-ROV/build/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV/build/ryugu_control/build --no-deps symlink_data --force
+[2.842s] running develop
+[3.223s] running egg_info
+[3.224s] writing ryugu_control.egg-info/PKG-INFO
+[3.224s] writing dependency_links to ryugu_control.egg-info/dependency_links.txt
+[3.225s] writing entry points to ryugu_control.egg-info/entry_points.txt
+[3.225s] writing requirements to ryugu_control.egg-info/requires.txt
+[3.225s] writing top-level names to ryugu_control.egg-info/top_level.txt
+[3.229s] reading manifest file 'ryugu_control.egg-info/SOURCES.txt'
+[3.230s] writing manifest file 'ryugu_control.egg-info/SOURCES.txt'
+[3.234s] running build_ext
+[3.234s] Creating /home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages/ryugu-control.egg-link (link to .)
+[3.236s] Installing gcs_bridge_node script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.237s] Installing test_arming_mode script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.237s] Installing test_sensor_reader script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.237s] Installing test_thrusters_gripper script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.238s] Installing webcam_streamer script to /home/icad/RYUGU-ROV/install/ryugu_control/lib/ryugu_control
+[3.238s] 
+[3.238s] Installed /home/icad/RYUGU-ROV/build/ryugu_control
+[3.239s] running symlink_data
+[3.239s] symbolically linking /home/icad/RYUGU-ROV/build/ryugu_control/resource/ryugu_control -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ament_index/resource_index/packages
+[3.239s] symbolically linking /home/icad/RYUGU-ROV/build/ryugu_control/package.xml -> /home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control
+[3.239s] error: [Errno 2] No such file or directory: '/home/icad/RYUGU-ROV/install/ryugu_control/share/ryugu_control/launch/ryugu_production.launch.py'
+[3.323s] Invoked command in '/home/icad/RYUGU-ROV/build/ryugu_control' returned '1': PYTHONPATH=/home/icad/RYUGU-ROV/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV/build/ryugu_control/build --no-deps symlink_data --force
