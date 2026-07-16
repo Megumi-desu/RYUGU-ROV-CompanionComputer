@@ -17,13 +17,21 @@ A ROS 2 Humble workspace for the RYUGU ROV (Remotely Operated Vehicle) control s
 
 ```text
 RYUGU-ROV/
+├── deploy/
+│   ├── install_mavlink_router.sh           # One-shot mavlink-router build & deploy script
+│   └── mavlink-router/
+│       ├── main.conf                       # mavlink-router config (→ /etc/mavlink-router/)
+│       └── mavlink-router.service          # systemd unit (→ /etc/systemd/system/)
+├── scripts/
+│   └── verify_mavlink_router.sh            # End-to-end telemetry chain verification
 ├── src/
 │   └── ryugu_control/                      # Main ROS 2 package (Python)
 │       ├── config/
 │       │   └── ardusub_params.yaml          # MAVROS/ArduSub configuration parameters
 │       ├── launch/
-│       │   ├── mavros_sub.launch.py        # Launch file for MAVROS
-│       │   └── ryugu_production.launch.py  # Main production launch file for the entire system
+│       │   ├── mavros_sub.launch.py        # Launch file for MAVROS (standalone)
+│       │   ├── ryugu_production.launch.py  # Production launch (direct serial mode)
+│       │   └── ryugu_GoProduction_QGC.launch.py  # Production launch with QGC (UDP mode)
 │       ├── ryugu_control/                  # Node source codes
 │       │   ├── __init__.py
 │       │   ├── gcs_bridge_node.py          # GCS ↔ Jetson ↔ Pixhawk UDP communication bridge node
@@ -49,15 +57,48 @@ RYUGU-ROV/
 The communication link relies on a custom UDP protocol validated using **CRC-16/CCITT-FALSE** (polynomial: `0x1021`, init: `0xFFFF`).
 
 ```text
-    GCS Laptop (192.168.1.100)
-               │
-      UDP Ports :5001 / :5002
-               ▼
-     Jetson Orin Nano (192.168.1.10)  ◄─── (Dual Webcams MJPEG HTTP :8554 & :8555)
-               │
-          USB Serial
-               ▼
-    Pixhawk 2.4.8 (ArduSub v4.5.7)
+                         ┌──────────────────────────────────────────────┐
+                         │  GCS Laptop (192.168.1.100)                  │
+                         │  ┌──────────────────┐  ┌──────────────────┐  │
+                         │  │ QGroundControl   │  │ Custom GCS App   │  │
+                         │  │ (IMU/Compass Cal)│  │ (UDP CMD & Telem)│  │
+                         │  └────────┬─────────┘  └────────┬─────────┘  │
+                         │           │                     │            │
+                         └───────────┼─────────────────────┼────────────┘
+                                     │ UDP :14550          │ UDP :5001 / :5002
+                                     │ (MAVLink)           │ (Custom Binary + CRC16)
+                                     │                     │
+                         ┌───────────┼─────────────────────┼─────────────┐
+                         │       Jetson Orin Nano (192.168.1.10)         │
+                         │           │                     │             │
+                         │  ┌────────▼─────────┐  ┌────────▼─────────┐   │
+                         │  │ mavlink-router   │  │ gcs_bridge_node  │   │
+                         │  │ (systemd service)│  │ (ROS2 Node)      │   │
+                         │  └───┬─────────┬────┘  └───────┬──────────┘   │
+                         │      │         │               │              │
+                         │      │         │ UDP :14555    │              │
+                         │      │         │ (MAVLink)     │              │
+                         │      │  ┌──────▼───────┐       │              │
+                         │      │  │ MAVROS Node  │◄──────┘              │
+                         │      │  │(fcu_url: UDP)│ ROS2 topics/services │
+                         │      │  └──────────────┘                      │
+                         │      │                                        │
+                         │  USB Serial                                   │
+                         │  /dev/ttyACM0                                 │
+                         │      │                                        │
+                         │  ┌───▼───────────┐                            │
+                         │  │ Dual Webcams  │  MJPEG HTTP                │
+                         │  │ :8554/:8555   │                            │
+                         │  └───────────────┘                            │
+                         └───────────────────────────────────────────────┘
+                                      │
+                                 USB Serial
+                              /dev/ttyACM0 @ 115200
+                                      │
+                         ┌────────────▼──────────────┐
+                         │ Pixhawk 2.4.8             │
+                         │ (ArduSub v4.5.7)          │
+                         └───────────────────────────┘
 ```
 
 ### Uplink (GCS ➔ Pixhawk)
@@ -127,6 +168,78 @@ ros2 launch ryugu_control ryugu_production.launch.py
   * Front Camera: `http://<JETSON_IP>:8554/video`
   * Bottom Camera: `http://<JETSON_IP>:8555/video`
   * *Note: If a camera is offline, the stream will automatically serve a dark placeholder image labeled "CAMERA DISCONNECTED".*
+
+---
+
+## 🔀 MAVLink Routing & QGroundControl Calibration
+
+The `mavlink-router` daemon splits the Pixhawk MAVLink telemetry stream in parallel to **MAVROS** (for the ROS2 control stack) and **QGroundControl** (for real-time sensor calibration on the GCS laptop).
+
+### Architecture
+
+```
+Pixhawk /dev/ttyACM0 @ 115200
+        │
+        ▼
+  mavlink-router (systemd service)
+        │
+        ├──► UDP 127.0.0.1:14555  ──► MAVROS  ──► ROS2 nodes
+        │
+        └──► UDP 192.168.1.100:14550  ──► QGroundControl (GCS laptop)
+```
+
+### 1. Install mavlink-router on Jetson
+
+```bash
+# One-shot build & deploy (compiles from source via meson + ninja)
+cd ~/RYUGU-ROV
+sudo ./deploy/install_mavlink_router.sh
+```
+
+The script installs `mavlink-routerd` to `/usr/local/bin`, deploys the config to `/etc/mavlink-router/main.conf`, and enables the systemd service.
+
+### 2. Manage the mavlink-router Service
+
+```bash
+sudo systemctl start mavlink-router     # Start the router
+sudo systemctl status mavlink-router    # Check if it's running
+sudo systemctl stop mavlink-router      # Stop the router
+sudo systemctl restart mavlink-router   # Restart after config changes
+journalctl -u mavlink-router -f         # Follow live logs
+```
+
+### 3. Launch the ROS2 Stack (QGC-Compatible Variant)
+
+This launch file sets MAVROS to listen on UDP port 14555 (where mavlink-router delivers the Pixhawk stream) instead of reading the serial port directly:
+
+```bash
+source install/setup.bash
+ros2 launch ryugu_control ryugu_GoProduction_QGC.launch.py
+```
+
+**Fallback to direct serial** (if mavlink-router is not running):
+```bash
+ros2 launch ryugu_control ryugu_GoProduction_QGC.launch.py fcu_url:=/dev/ttyACM0:115200
+```
+
+The original `ryugu_production.launch.py` is preserved for direct-serial-only operation without QGC.
+
+### 4. Connect QGroundControl on the GCS Laptop
+
+1. Open **QGroundControl** (daily build recommended for ArduSub).
+2. Go to **Application Settings → Comm Links**.
+3. Add a UDP link: port `14550`, server mode (QGC listens).
+4. Once connected, the QGC top bar shows "ArduSub v4.5.7" with vehicle status.
+5. Navigate to **Sensors → Calibrate Sensors** to calibrate IMU, compass, and level horizon.
+
+### 5. Verify Everything Is Working
+
+```bash
+# Run the verification suite on the Jetson:
+./scripts/verify_mavlink_router.sh
+```
+
+This script checks the mavlink-router binary, systemd service, UDP ports, serial device, and MAVROS IMU telemetry — with clear PASS/FAIL indicators and suggested fixes.
 
 ---
 
