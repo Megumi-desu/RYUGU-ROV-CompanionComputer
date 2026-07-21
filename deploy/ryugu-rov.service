@@ -1,0 +1,18 @@
+[Unit]
+Description=RYUGU ROV ROS2 Main Control Stack
+After=network-online.target mavlink-router.service
+Wants=network-online.target mavlink-router.service
+
+[Service]
+Type=simple
+User=icad
+ExecStartPre=/bin/sleep 15
+ExecStart=/home/icad/RYUGU-ROV/deploy/start_rov.sh
+Restart=on-failure
+RestartSec=5
+Nice=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

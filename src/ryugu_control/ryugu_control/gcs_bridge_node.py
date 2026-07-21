@@ -331,10 +331,15 @@ class GCSBridgeNode(Node):
             RCOut, '/mavros/rc/out',
             self._rcout_callback, 10, callback_group=self._cb_group)
 
-        # QR code data from webcam_streamer
-        self._qr_sub = self.create_subscription(
-            String, '/ryugu/qr_raw_data',
-            self._qr_callback, 10, callback_group=self._cb_group)
+        # QR code data from webcam_streamer (per-camera topics)
+        self._qr_front_sub = self.create_subscription(
+            String, '/ryugu/qr/front',
+            lambda msg: self._handle_qr_callback(msg.data, 0),
+            10, callback_group=self._cb_group)
+        self._qr_bottom_sub = self.create_subscription(
+            String, '/ryugu/qr/bottom',
+            lambda msg: self._handle_qr_callback(msg.data, 1),
+            10, callback_group=self._cb_group)
 
         # ── Timers ─────────────────────────────────────────────────────
         self._manual_timer = self.create_timer(
@@ -747,23 +752,52 @@ class GCSBridgeNode(Node):
         with self._state_lock:
             self._rc_channels = list(msg.channels)
 
-    def _qr_callback(self, msg: String):
+    def _handle_qr_callback(self, qr_data: str, camera_id: int):
         """
         Handle incoming QR data from webcam_streamer.
+
+        Formats a TELEM_QR (0x04) UDP payload with metadata header:
+          [camera_id (1B)] [zone_id (1B)] [valid (1B)] [str_len (1B)] [qr_string (N B)]
+
+        camera_id: 0 = Front, 1 = Bottom
+        zone_id:   parsed from QR string content (SIDE-A=0, SIDE-B=1, SIDE-C=2, SIDE-D=3, default=255)
+        valid:     1 unless the string contains "ERR" or "INVALID"
 
         Throttling rules (avoid flooding the GCS):
           - If the QR string differs from the last sent string → send immediately.
           - If the same QR code is still in view → send at most once per second (1 Hz).
           - Otherwise → drop (already sent recently).
         """
-        qr_data = msg.data
         if not qr_data:
             return
+
+        # ── Parse zone_id from QR content ──────────────────────────────
+        qr_upper = qr_data.upper()
+        zone_id = 255
+        if "SIDE-A" in qr_upper or "SIDE_A" in qr_upper:
+            zone_id = 0
+        elif "SIDE-B" in qr_upper or "SIDE_B" in qr_upper:
+            zone_id = 1
+        elif "SIDE-C" in qr_upper or "SIDE_C" in qr_upper:
+            zone_id = 2
+        elif "SIDE-D" in qr_upper or "SIDE_D" in qr_upper:
+            zone_id = 3
+
+        # ── Validity check ─────────────────────────────────────────────
+        valid = 0 if ("ERR" in qr_upper or "INVALID" in qr_upper) else 1
+
+        # ── Encode string ──────────────────────────────────────────────
+        qr_bytes = qr_data.encode('utf-8')
+        str_len = min(len(qr_bytes), 255)
+
+        camera_names = {0: 'Front', 1: 'Bottom'}
 
         now = time.monotonic()
         should_send = False
 
-        if qr_data != self._last_qr_sent_data:
+        # Build a compound key for throttling (camera + content)
+        throttle_key = f'{camera_id}:{qr_data}'
+        if throttle_key != self._last_qr_sent_data:
             # New / changed QR code → always send
             should_send = True
         elif now - self._last_qr_send_time >= 1.0:
@@ -771,20 +805,17 @@ class GCSBridgeNode(Node):
             should_send = True
 
         if should_send:
-            payload = qr_data.encode('utf-8')
-            # Sanity check: don't exceed max payload size
-            if len(payload) > MAX_PAYLOAD:
-                self.get_logger().warn(
-                    f'QR data too long ({len(payload)} bytes), '
-                    f'truncating to {MAX_PAYLOAD}')
-                payload = payload[:MAX_PAYLOAD]
+            # Pack: camera_id (B), zone_id (B), valid (B), str_len (B) + string bytes
+            payload = struct.pack(
+                '<BBBB', camera_id, zone_id, valid, str_len) + qr_bytes[:str_len]
 
             self._send_packet(TELEM_QR, payload)
-            self._last_qr_sent_data = qr_data
+            self._last_qr_sent_data = throttle_key
             self._last_qr_send_time = now
             self.get_logger().info(
-                f'QR telemetry sent: "{qr_data}" '
-                f'({len(payload)} bytes)')
+                f'QR telemetry sent [{camera_names.get(camera_id, "?")}]: '
+                f'zone={zone_id} valid={valid} '
+                f'"{qr_data}" ({str_len}B payload)')
 
     # ═══════════════════════════════════════════════════════════════════════
     #  Timer callbacks  (publish to MAVROS / send to GCS)

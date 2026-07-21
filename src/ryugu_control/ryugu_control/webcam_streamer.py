@@ -6,7 +6,7 @@ Captures video from two USB webcams and streams them over HTTP as MJPEG
 so the GCS laptop can display them in a browser, VLC, or OpenCV.
 
 Also performs offline QR code detection (throttled to 5 Hz) on captured
-frames and publishes decoded strings to /ryugu/qr_raw_data for downstream
+frames and publishes decoded strings to /ryugu/qr/front and /ryugu/qr/bottom for downstream
 telemetry via gcs_bridge_node.
 
 Streams:
@@ -14,7 +14,7 @@ Streams:
   Bottom Camera → http://192.168.1.10:8555/video  (/dev/video2)
 
 QR Detection:
-  Publisher: /ryugu/qr_raw_data  (std_msgs/String)
+  Publishers: /ryugu/qr/front, /ryugu/qr/bottom  (std_msgs/String)
   Scan rate: 5 Hz (every ~200 ms) on each camera independently
   Headless:  No GUI — safe for Jetson Orin Nano (no imshow/waitKey)
 
@@ -501,8 +501,9 @@ class WebcamStreamerNode(Node):
             self.get_logger().error(
                 f'Cannot start bottom camera server on port {bottom_port}: {e}')
 
-        # ── QR code publisher ──────────────────────────────────────────
-        self._qr_pub = self.create_publisher(String, '/ryugu/qr_raw_data', 10)
+        # ── QR code publishers (one per camera) ─────────────────────────
+        self._qr_front_pub = self.create_publisher(String, '/ryugu/qr/front', 10)
+        self._qr_bottom_pub = self.create_publisher(String, '/ryugu/qr/bottom', 10)
 
         # Poll cameras at ~10 Hz for new QR data and publish when available
         self._qr_timer = self.create_timer(0.1, self._publish_qr_data)
@@ -528,15 +529,23 @@ class WebcamStreamerNode(Node):
         """
         Poll both cameras for new QR data and publish non-empty strings.
 
+        Publishes to per-camera topics so the GCS knows which camera
+        detected the QR code:
+          - Front camera → /ryugu/qr/front
+          - Bottom camera → /ryugu/qr/bottom
+
         Uses a consume pattern so each QR code is published exactly once
         per detection (the camera thread clears it on read).
         """
-        for cam in self._cameras:
+        for cam, pub in [
+            (self._front_cam, self._qr_front_pub),
+            (self._bottom_cam, self._qr_bottom_pub),
+        ]:
             qr_data = cam.consume_qr_data()
             if qr_data:
                 msg = String()
                 msg.data = qr_data
-                self._qr_pub.publish(msg)
+                pub.publish(msg)
                 self.get_logger().info(
                     f'QR detected on {cam.label}: "{qr_data}"')
 
