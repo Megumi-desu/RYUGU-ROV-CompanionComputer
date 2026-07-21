@@ -24,6 +24,7 @@ Downlink (Pixhawk → GCS):
   - TELEM_IMU    (0x01): pitch, roll, yaw (°)           @ 20 Hz
   - TELEM_DEPTH  (0x02): depth_m, altitude_m            @ 20 Hz
   - TELEM_STATUS (0x03): battery, arm, mode, thrusters  @ 20 Hz
+  - TELEM_QR     (0x04): QR code string (on-detection)  event-driven, throttled to 1 Hz
 
 Packet Format:
   [SYNC: 0xAA55 LE (2B)] [ID (1B)] [LEN (2B LE)] [PAYLOAD (0..1024B)] [CRC-16 (2B)]
@@ -52,6 +53,7 @@ from rclpy.executors import MultiThreadedExecutor
 from mavros_msgs.msg import ManualControl, RCOut, State, Altitude
 from mavros_msgs.srv import CommandBool, CommandLong, SetMode
 from sensor_msgs.msg import BatteryState, Imu
+from std_msgs.msg import String
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  CRC-16/CCITT-FALSE  (poly=0x1021, init=0xFFFF, no reflection)
@@ -99,6 +101,7 @@ CMD_ESTOP    = 0x86
 TELEM_IMU    = 0x01
 TELEM_DEPTH  = 0x02
 TELEM_STATUS = 0x03
+TELEM_QR     = 0x04
 ACK          = 0xF0
 
 # ── Mode mapping: protocol ID → ArduSub custom_mode string ──
@@ -284,6 +287,10 @@ class GCSBridgeNode(Node):
         # Motion logging throttle (avoid CLI flood at 10–20 Hz input rate)
         self._last_motion_log_time: float = 0.0
 
+        # QR telemetry throttling — avoid flooding GCS with duplicate data
+        self._last_qr_sent_data: str = ''
+        self._last_qr_send_time: float = 0.0
+
         # ── Callback group (reentrant for multi-threaded executor) ─────
         self._cb_group = ReentrantCallbackGroup()
 
@@ -323,6 +330,11 @@ class GCSBridgeNode(Node):
         self._rcout_sub = self.create_subscription(
             RCOut, '/mavros/rc/out',
             self._rcout_callback, 10, callback_group=self._cb_group)
+
+        # QR code data from webcam_streamer
+        self._qr_sub = self.create_subscription(
+            String, '/ryugu/qr_raw_data',
+            self._qr_callback, 10, callback_group=self._cb_group)
 
         # ── Timers ─────────────────────────────────────────────────────
         self._manual_timer = self.create_timer(
@@ -734,6 +746,45 @@ class GCSBridgeNode(Node):
         """Store RC output channel values for thruster feedback."""
         with self._state_lock:
             self._rc_channels = list(msg.channels)
+
+    def _qr_callback(self, msg: String):
+        """
+        Handle incoming QR data from webcam_streamer.
+
+        Throttling rules (avoid flooding the GCS):
+          - If the QR string differs from the last sent string → send immediately.
+          - If the same QR code is still in view → send at most once per second (1 Hz).
+          - Otherwise → drop (already sent recently).
+        """
+        qr_data = msg.data
+        if not qr_data:
+            return
+
+        now = time.monotonic()
+        should_send = False
+
+        if qr_data != self._last_qr_sent_data:
+            # New / changed QR code → always send
+            should_send = True
+        elif now - self._last_qr_send_time >= 1.0:
+            # Same QR still in view, but 1 s has elapsed → re-send at 1 Hz
+            should_send = True
+
+        if should_send:
+            payload = qr_data.encode('utf-8')
+            # Sanity check: don't exceed max payload size
+            if len(payload) > MAX_PAYLOAD:
+                self.get_logger().warn(
+                    f'QR data too long ({len(payload)} bytes), '
+                    f'truncating to {MAX_PAYLOAD}')
+                payload = payload[:MAX_PAYLOAD]
+
+            self._send_packet(TELEM_QR, payload)
+            self._last_qr_sent_data = qr_data
+            self._last_qr_send_time = now
+            self.get_logger().info(
+                f'QR telemetry sent: "{qr_data}" '
+                f'({len(payload)} bytes)')
 
     # ═══════════════════════════════════════════════════════════════════════
     #  Timer callbacks  (publish to MAVROS / send to GCS)

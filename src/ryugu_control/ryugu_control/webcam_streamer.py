@@ -5,9 +5,18 @@ webcam_streamer.py — Dual USB Webcam MJPEG Streaming Node for RYUGU ROV
 Captures video from two USB webcams and streams them over HTTP as MJPEG
 so the GCS laptop can display them in a browser, VLC, or OpenCV.
 
+Also performs offline QR code detection (throttled to 5 Hz) on captured
+frames and publishes decoded strings to /ryugu/qr_raw_data for downstream
+telemetry via gcs_bridge_node.
+
 Streams:
   Front Camera → http://192.168.1.10:8554/video  (/dev/video0)
   Bottom Camera → http://192.168.1.10:8555/video  (/dev/video2)
+
+QR Detection:
+  Publisher: /ryugu/qr_raw_data  (std_msgs/String)
+  Scan rate: 5 Hz (every ~200 ms) on each camera independently
+  Headless:  No GUI — safe for Jetson Orin Nano (no imshow/waitKey)
 
 Robustness:
   - If a camera is disconnected at startup, its stream serves a static
@@ -40,6 +49,7 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from std_msgs.msg import String
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Placeholder image generator
@@ -118,6 +128,12 @@ class CameraCapture:
         self._thread: Optional[threading.Thread] = None
         self._cap: Optional[cv2.VideoCapture] = None
 
+        # QR code detection
+        self._qr_detector = cv2.QRCodeDetector()
+        self._latest_qr_data: Optional[str] = None
+        self._last_qr_scan_time = 0.0
+        self._qr_scan_interval = 0.2   # 5 Hz throttle
+
         # Statistics
         self._frame_count = 0
         self._fps_actual = 0.0
@@ -143,6 +159,17 @@ class CameraCapture:
     def fps_actual(self) -> float:
         with self._lock:
             return self._fps_actual
+
+    def consume_qr_data(self) -> Optional[str]:
+        """
+        Return the latest decoded QR string and clear it (consume pattern).
+
+        Returns None if no new QR data has been detected since the last call.
+        """
+        with self._lock:
+            data = self._latest_qr_data
+            self._latest_qr_data = None
+            return data
 
     def start(self):
         """Start the background capture thread."""
@@ -223,6 +250,15 @@ class CameraCapture:
                 self._cap.release()
                 self._cap = None
                 continue
+
+            # ── QR code detection (throttled to 5 Hz) ──────────────────
+            now = time.monotonic()
+            if now - self._last_qr_scan_time >= self._qr_scan_interval:
+                self._last_qr_scan_time = now
+                qr_data, _, _ = self._qr_detector.detectAndDecode(frame)
+                if qr_data:
+                    with self._lock:
+                        self._latest_qr_data = qr_data
 
             # ── Encode to JPEG ──────────────────────────────────────────
             _, jpeg = cv2.imencode(
@@ -465,6 +501,12 @@ class WebcamStreamerNode(Node):
             self.get_logger().error(
                 f'Cannot start bottom camera server on port {bottom_port}: {e}')
 
+        # ── QR code publisher ──────────────────────────────────────────
+        self._qr_pub = self.create_publisher(String, '/ryugu/qr_raw_data', 10)
+
+        # Poll cameras at ~10 Hz for new QR data and publish when available
+        self._qr_timer = self.create_timer(0.1, self._publish_qr_data)
+
         # ── Status monitor timer (logs stats every 30 s) ────────────────
         self._monitor_timer = self.create_timer(30.0, self._log_status)
 
@@ -481,6 +523,22 @@ class WebcamStreamerNode(Node):
                 f'{cam.label}: {state} '
                 f'{cam.fps_actual:.1f}fps ({cam.frame_count} frames)')
         self.get_logger().info(' | '.join(parts))
+
+    def _publish_qr_data(self):
+        """
+        Poll both cameras for new QR data and publish non-empty strings.
+
+        Uses a consume pattern so each QR code is published exactly once
+        per detection (the camera thread clears it on read).
+        """
+        for cam in self._cameras:
+            qr_data = cam.consume_qr_data()
+            if qr_data:
+                msg = String()
+                msg.data = qr_data
+                self._qr_pub.publish(msg)
+                self.get_logger().info(
+                    f'QR detected on {cam.label}: "{qr_data}"')
 
     def destroy_node(self):
         """Clean shutdown: stop cameras and HTTP servers."""
