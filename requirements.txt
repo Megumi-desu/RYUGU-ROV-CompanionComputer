@@ -1,0 +1,6 @@
+# RYUGU ROV Companion Computer - Python Dependencies
+# ROS 2 Humble / Jetson Orin Nano Environment
+
+numpy>=1.21.5
+opencv-python>=4.10.0
+pymavlink>=2.4.49
