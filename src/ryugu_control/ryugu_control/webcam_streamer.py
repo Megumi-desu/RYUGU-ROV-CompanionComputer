@@ -47,6 +47,7 @@ from typing import Optional
 
 import cv2
 import numpy as np
+from pyzbar.pyzbar import decode as pyzbar_decode
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -128,8 +129,7 @@ class CameraCapture:
         self._thread: Optional[threading.Thread] = None
         self._cap: Optional[cv2.VideoCapture] = None
 
-        # QR code detection
-        self._qr_detector = cv2.QRCodeDetector()
+        # QR code detection (using pyzbar for better small/dense QR support)
         self._latest_qr_data: Optional[str] = None
         self._last_qr_scan_time = 0.0
         self._qr_scan_interval = 0.2   # 5 Hz throttle
@@ -251,14 +251,19 @@ class CameraCapture:
                 self._cap = None
                 continue
 
-            # ── QR code detection (throttled to 5 Hz) ──────────────────
+            # ── QR code detection via pyzbar (throttled to 5 Hz) ────────
             now = time.monotonic()
             if now - self._last_qr_scan_time >= self._qr_scan_interval:
                 self._last_qr_scan_time = now
-                qr_data, _, _ = self._qr_detector.detectAndDecode(frame)
-                if qr_data:
-                    with self._lock:
-                        self._latest_qr_data = qr_data
+                # Convert to grayscale for faster & more reliable decoding
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                decoded_objects = pyzbar_decode(gray)
+                if decoded_objects:
+                    # Take the first detected QR code
+                    qr_data = decoded_objects[0].data.decode('utf-8')
+                    if qr_data:
+                        with self._lock:
+                            self._latest_qr_data = qr_data
 
             # ── Encode to JPEG ──────────────────────────────────────────
             _, jpeg = cv2.imencode(
@@ -441,8 +446,8 @@ class WebcamStreamerNode(Node):
         self.declare_parameter('bottom_port', 8555)
         self.declare_parameter('front_dev', '/dev/video0')
         self.declare_parameter('bottom_dev', '/dev/video2')
-        self.declare_parameter('width', 640)
-        self.declare_parameter('height', 480)
+        self.declare_parameter('width', 1280)
+        self.declare_parameter('height', 720)
         self.declare_parameter('fps', 30)
         self.declare_parameter('jpeg_quality', 70)
 
