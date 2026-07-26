@@ -1,30 +1,56 @@
 #!/usr/bin/env python3
 """
-gcs_bridge_node.py — Unified GCS ↔ Jetson ↔ Pixhawk Communication Bridge
+gcs_bridge_node.py — Telemetry-Only GCS ↔ Jetson ↔ Pixhawk Communication Bridge
 
-This ROS2 node manages the bidirectional UDP telemetry link between the
+This ROS2 node manages the DOWNLINK-ONLY UDP telemetry link between the
 Operator GCS Laptop and the Pixhawk flight controller via MAVROS.
 
-Architecture:
-  GCS Laptop (192.168.1.100)  ←─ UDP :5001/:5002 ─→  Jetson Orin Nano (192.168.1.10)
-                                                              │
-                                                        MAVROS (USB serial)
-                                                              │
-                                                      Pixhawk 2.4.8 (ArduSub v4.5.7)
+**HYBRID CONTROL ARCHITECTURE (Refactored 2026-07-27):**
 
-Uplink (GCS → Pixhawk):
-  - CMD_MOTION  (0x81) → /mavros/manual_control/send   @ 10 Hz
-  - CMD_MODE    (0x82) → /mavros/set_mode              (ACK)
-  - CMD_GRIPPER (0x83) → /mavros/cmd/command           (MAV_CMD_DO_SET_SERVO)
-  - CMD_BALLAST (0x84) → parsed, no hardware action
-  - CMD_ARM     (0x85) → /mavros/cmd/arming            (ACK)
-  - CMD_ESTOP   (0x86) → disarm immediately            (ACK)
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  CONTROL PATH (Uplink):  Handled 100% by QGroundControl v5.0+       │
+  │                                                                     │
+  │  GCS Laptop (QGC) ──UDP :14550──▶ mavlink-router ──USB Serial──▶ Pixhawk │
+  │                                                                     │
+  │  • Joystick MANUAL_CONTROL messages                                 │
+  │  • Arming / Disarming                                               │
+  │  • Flight Mode switching                                            │
+  │  • Parameter tuning                                                 │
+  │  • All MAVLink command packets (sysid = GCS)                        │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  TELEMETRY PATH (Downlink):  ROS 2 gcs_bridge_node (THIS NODE)      │
+  │                                                                     │
+  │  Pixhawk ──USB Serial──▶ MAVROS ──ROS2 topics──▶ gcs_bridge_node    │
+  │                                                     │               │
+  │                                          Binary UDP :5002           │
+  │                                                     │               │
+  │                                               PyQt5 GCS             │
+  │                                                                     │
+  │  • TELEM_IMU    (0x01): pitch, roll, yaw (°)          @ 20 Hz      │
+  │  • TELEM_DEPTH  (0x02): depth_m, altitude_m           @ 20 Hz      │
+  │  • TELEM_STATUS (0x03): battery, arm, mode, thrusters @ 20 Hz      │
+  │  • TELEM_QR     (0x04): QR code string (event-driven)               │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  VIDEO PATH (Independent): webcam_streamer node                     │
+  │                                                                     │
+  │  USB Webcams ──▶ webcam_streamer ──HTTP MJPEG :8554/:8555──▶ GCS   │
+  └─────────────────────────────────────────────────────────────────────┘
+
+**CRITICAL DESIGN CONSTRAINT:**
+  This node MUST NOT publish any ManualControl, OverrideRCIn, or invoke any
+  MAVROS service calls (arming, set_mode, command).  Doing so would cause
+  MAVLink packet collisions (sysid mismatch / lockout) with QGroundControl
+  on the shared MAVLink bus.  All command execution is disabled by design.
 
 Downlink (Pixhawk → GCS):
-  - TELEM_IMU    (0x01): pitch, roll, yaw (°)           @ 20 Hz
-  - TELEM_DEPTH  (0x02): depth_m, altitude_m            @ 20 Hz
-  - TELEM_STATUS (0x03): battery, arm, mode, thrusters  @ 20 Hz
-  - TELEM_QR     (0x04): QR code string (on-detection)  event-driven, throttled to 1 Hz
+  - TELEM_IMU    (0x01): pitch, roll, yaw (°)               @ 20 Hz
+  - TELEM_DEPTH  (0x02): depth_m, altitude_m                @ 20 Hz
+  - TELEM_STATUS (0x03): battery, arm, mode, thrusters      @ 20 Hz
+  - TELEM_QR     (0x04): QR code string (on-detection)      event-driven, throttled to 1 Hz
 
 Packet Format:
   [SYNC: 0xAA55 LE (2B)] [ID (1B)] [LEN (2B LE)] [PAYLOAD (0..1024B)] [CRC-16 (2B)]
@@ -38,7 +64,6 @@ Usage:
 import math
 import socket
 import struct
-import subprocess
 import threading
 import time
 from typing import Optional
@@ -49,9 +74,11 @@ from rclpy.qos import qos_profile_sensor_data
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
-# ── MAVROS message & service types ──────────────────────────────────────────
-from mavros_msgs.msg import ManualControl, RCOut, State, Altitude
-from mavros_msgs.srv import CommandBool, CommandLong, SetMode
+# ── MAVROS message types (telemetry-only subscriptions) ──────────────────
+# NOTE: ManualControl, OverrideRCIn, CommandBool, CommandLong, and SetMode
+#       imports REMOVED — this node operates in TELEMETRY-ONLY mode.
+#       All MAVLink command packets are handled exclusively by QGroundControl.
+from mavros_msgs.msg import RCOut, State, Altitude
 from sensor_msgs.msg import BatteryState, Imu
 from std_msgs.msg import String
 
@@ -89,7 +116,7 @@ HEADER_SIZE = 5    # SYNC(2) + ID(1) + LEN(2)
 CRC_SIZE    = 2
 MAX_PAYLOAD = 1024
 
-# ── GCS → Jetson command IDs ──
+# ── GCS → Jetson command IDs (received but NOT executed in telemetry-only mode) ──
 CMD_MOTION   = 0x81
 CMD_MODE     = 0x82
 CMD_GRIPPER  = 0x83
@@ -104,26 +131,36 @@ TELEM_STATUS = 0x03
 TELEM_QR     = 0x04
 ACK          = 0xF0
 
-# ── Mode mapping: protocol ID → ArduSub custom_mode string ──
+# ── Mode mapping: protocol ID → ArduSub custom_mode string (telemetry use only) ──
 MODE_MAP = {
-    0: 'MANUAL',
-    1: 'STABILIZE',
-    2: 'ALT_HOLD',
-    3: 'AUTO',
+    0: '0',  # MANUAL
+    1: '1',  # STABILIZE
+    2: '2',  # ALT_HOLD
+    3: '3',  # AUTO
 }
 
-# ── Gripper constants ──
-MAV_CMD_DO_SET_SERVO = 183
-GRIPPER_SERVO_PIN    = 1       # MAIN 1 on Pixhawk
-GRIPPER_PWM_STOP     = 1500
-GRIPPER_PWM_OPEN     = 1900
-GRIPPER_PWM_CLOSE    = 1100
+# ── Gripper constants (kept for reference; not executed in telemetry-only mode) ──
+# MAV_CMD_DO_SET_SERVO = 183
+# GRIPPER_SERVO_PIN    = 1       # MAIN 1 on Pixhawk
+# GRIPPER_PWM_STOP     = 1500
+# GRIPPER_PWM_OPEN     = 1900
+# GRIPPER_PWM_CLOSE    = 1100
 
 # ── Thruster mapping: AUX 1–6 → mavros RC out channel indices (0-based) ──
 #  On Pixhawk with ArduSub, AUX 1–6 are typically RC channels 9–14
 #  (indices 8–13 in the 16-element channels array).
 THRUSTER_START_IDX = 8   # AUX 1 = channel 9 = index 8
 THRUSTER_COUNT     = 6
+
+# ── Command name mapping for log messages ────────────────────────────────
+_CMD_NAMES = {
+    0x81: 'CMD_MOTION',
+    0x82: 'CMD_MODE',
+    0x83: 'CMD_GRIPPER',
+    0x84: 'CMD_BALLAST',
+    0x85: 'CMD_ARM',
+    0x86: 'CMD_ESTOP',
+}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Packet builder / parser
@@ -225,17 +262,26 @@ def quaternion_to_euler_deg(qx: float, qy: float, qz: float, qw: float):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  GCSBridgeNode
+#  GCSBridgeNode  (Telemetry-Only Mode)
 # ═══════════════════════════════════════════════════════════════════════════════
 class GCSBridgeNode(Node):
     """
-    Unified ROS2 bridge node for the RYUGU ROV.
+    Telemetry-only ROS2 bridge node for the RYUGU ROV.
 
-    Uplink:   Receives binary UDP packets from the GCS, validates CRC-16,
-              and translates them into MAVROS topic publications and service calls.
+    **Uplink: DISABLED.**
+       Incoming binary UDP packets from the GCS are received and CRC-validated,
+       but their commands are NOT executed.  A warning is logged for each
+       received command indicating that the control path is handled exclusively
+       by QGroundControl on the MAVLink bus.
 
-    Downlink: Subscribes to MAVROS telemetry topics, packs them into binary
-              UDP packets, and transmits them to the GCS at 20 Hz.
+       This prevents sysid mismatch / lockout collisions between this node
+       and QGroundControl when both would otherwise attempt to publish
+       MANUAL_CONTROL or invoke arming/set_mode service calls.
+
+    **Downlink: ACTIVE.**
+       Subscribes to MAVROS telemetry topics, packs them into binary UDP
+       packets (TELEM_IMU, TELEM_DEPTH, TELEM_STATUS, TELEM_QR), and
+       transmits them to the custom PyQt5 GCS at the configured rate (20 Hz).
     """
 
     def __init__(self):
@@ -246,21 +292,16 @@ class GCSBridgeNode(Node):
         self.declare_parameter('gcs_ip', '192.168.1.100')
         self.declare_parameter('cmd_port', 5001)
         self.declare_parameter('telem_port', 5002)
-        self.declare_parameter('manual_control_rate', 10.0)
         self.declare_parameter('telemetry_rate', 20.0)
 
         self._jetson_ip = self.get_parameter('jetson_ip').get_parameter_value().string_value
         self._gcs_ip    = self.get_parameter('gcs_ip').get_parameter_value().string_value
         self._cmd_port  = self.get_parameter('cmd_port').get_parameter_value().integer_value
         self._telem_port = self.get_parameter('telem_port').get_parameter_value().integer_value
-        self._manual_rate = self.get_parameter('manual_control_rate').get_parameter_value().double_value
         self._telem_rate  = self.get_parameter('telemetry_rate').get_parameter_value().double_value
 
         # ── Thread-safe shared state ───────────────────────────────────
         self._state_lock = threading.Lock()
-
-        # Latest received motion command (surge, sway, heave, yaw, pitch, roll)
-        self._latest_motion: tuple[int, ...] = (0, 0, 0, 0, 0, 0)
 
         # Latest MAVROS telemetry values
         self._roll: float  = 0.0
@@ -284,9 +325,6 @@ class GCSBridgeNode(Node):
         self._tx_packet_count = 0
         self._crc_error_count = 0
 
-        # Motion logging throttle (avoid CLI flood at 10–20 Hz input rate)
-        self._last_motion_log_time: float = 0.0
-
         # QR telemetry throttling — avoid flooding GCS with duplicate data
         self._last_qr_sent_data: str = ''
         self._last_qr_send_time: float = 0.0
@@ -294,16 +332,39 @@ class GCSBridgeNode(Node):
         # ── Callback group (reentrant for multi-threaded executor) ─────
         self._cb_group = ReentrantCallbackGroup()
 
-        # ── Publishers ─────────────────────────────────────────────────
-        self._manual_pub = self.create_publisher(
-            ManualControl, '/mavros/manual_control/send', 10)
+        # ═══════════════════════════════════════════════════════════════════
+        #  PUBLISHERS — DISABLED (Control Path Shutdown)
+        # ═══════════════════════════════════════════════════════════════════
+        #
+        # ManualControl and OverrideRCIn publishers are intentionally
+        # removed.  All MAVLink command packets (MANUAL_CONTROL, arming,
+        # mode switching) are handled exclusively by QGroundControl.
+        #
+        # Publishing from this node would cause a sysid mismatch on the
+        # MAVLink bus, leading to lockout where the Pixhawk alternates
+        # between two control sources and becomes unresponsive.
+        #
+        # self._manual_pub = self.create_publisher(
+        #     ManualControl, '/mavros/manual_control/send', 10)
+        # self._rc_override_pub = self.create_publisher(
+        #     OverrideRCIn, '/mavros/rc/override', 10)
 
-        # ── Service clients ────────────────────────────────────────────
-        self._arming_cli  = self.create_client(CommandBool, '/mavros/cmd/arming')
-        self._setmode_cli = self.create_client(SetMode, '/mavros/set_mode')
-        self._command_cli = self.create_client(CommandLong, '/mavros/cmd/command')
+        # ═══════════════════════════════════════════════════════════════════
+        #  SERVICE CLIENTS — DISABLED (Control Path Shutdown)
+        # ═══════════════════════════════════════════════════════════════════
+        #
+        # Arming, SetMode, and CommandLong service clients are intentionally
+        # removed.  QGroundControl owns all MAVLink service calls.
+        #
+        # self._arming_cli  = self.create_client(CommandBool, '/mavros/cmd/arming')
+        # self._setmode_cli = self.create_client(SetMode, '/mavros/set_mode')
+        # self._command_cli = self.create_client(CommandLong, '/mavros/cmd/command')
 
-        # ── Subscribers ────────────────────────────────────────────────
+        # ═══════════════════════════════════════════════════════════════════
+        #  SUBSCRIBERS — ACTIVE (Telemetry Downlink)
+        # ═══════════════════════════════════════════════════════════════════
+        # All MAVROS telemetry subscriptions are preserved and fully active.
+
         # IMU data (primary source for orientation — always active, GPS-independent)
         self._imu_sub = self.create_subscription(
             Imu, '/mavros/imu/data',
@@ -341,11 +402,18 @@ class GCSBridgeNode(Node):
             lambda msg: self._handle_qr_callback(msg.data, 1),
             10, callback_group=self._cb_group)
 
-        # ── Timers ─────────────────────────────────────────────────────
-        self._manual_timer = self.create_timer(
-            1.0 / self._manual_rate, self._publish_manual_control,
-            callback_group=self._cb_group)
+        # ═══════════════════════════════════════════════════════════════════
+        #  TIMERS — TELEMETRY ONLY (Manual Control Timer DISABLED)
+        # ═══════════════════════════════════════════════════════════════════
+        #
+        # The manual control timer and its callback are removed to prevent
+        # any MANUAL_CONTROL MAVLink messages from this node.
+        #
+        # self._manual_timer = self.create_timer(
+        #     1.0 / self._manual_rate, self._publish_manual_control,
+        #     callback_group=self._cb_group)
 
+        # Telemetry broadcast timer — ACTIVE
         self._telem_timer = self.create_timer(
             1.0 / self._telem_rate, self._publish_telemetry,
             callback_group=self._cb_group)
@@ -355,9 +423,9 @@ class GCSBridgeNode(Node):
         self._start_receiver()
 
         self.get_logger().info(
-            f'GCSBridgeNode started — '
-            f'listening on {self._jetson_ip}:{self._cmd_port}, '
-            f'sending to {self._gcs_ip}:{self._telem_port}')
+            f'GCSBridgeNode started in TELEMETRY-ONLY mode — '
+            f'listening on {self._jetson_ip}:{self._cmd_port} (commands DISABLED), '
+            f'sending to {self._gcs_ip}:{self._telem_port} (telemetry ACTIVE)')
 
     # ═══════════════════════════════════════════════════════════════════════
     #  Socket setup
@@ -382,7 +450,7 @@ class GCSBridgeNode(Node):
     #  Transmit helper
     # ═══════════════════════════════════════════════════════════════════════
     def _send_packet(self, pkt_id: int, payload: bytes = b''):
-        """Build and send a packet to the GCS via UDP."""
+        """Build and send a telemetry packet to the GCS via UDP."""
         if self._sock is None:
             return
         pkt = build_packet(pkt_id, payload)
@@ -392,17 +460,18 @@ class GCSBridgeNode(Node):
         except OSError:
             pass  # GCS may not be listening yet
 
-    def _send_ack(self, acked_cmd_id: int):
-        """Send an ACK packet acknowledging a command."""
-        payload = struct.pack('<B', acked_cmd_id)
-        self._send_packet(ACK, payload)
-        self.get_logger().debug(f'ACK sent for cmd 0x{acked_cmd_id:02X}')
-
     # ═══════════════════════════════════════════════════════════════════════
-    #  Receiver thread  (Uplink: GCS → MAVROS)
+    #  Receiver thread  (Uplink: GCS → Jetson — COMMANDS DISABLED)
     # ═══════════════════════════════════════════════════════════════════════
     def _start_receiver(self):
-        """Launch the background UDP receiver thread."""
+        """
+        Launch the background UDP receiver thread.
+
+        The receiver still accepts and CRC-validates incoming packets so
+        that the GCS can verify the UDP link is operational.  However, all
+        received commands are logged and discarded — no MAVROS publications
+        or service calls are made.
+        """
         if self._sock is None:
             self.get_logger().warn('Receiver thread not started — no socket')
             return
@@ -410,10 +479,10 @@ class GCSBridgeNode(Node):
         self._receiver_thread = threading.Thread(
             target=self._receiver_loop, name='gcs-udp-rx', daemon=True)
         self._receiver_thread.start()
-        self.get_logger().info('UDP receiver thread started')
+        self.get_logger().info('UDP receiver thread started (command execution DISABLED)')
 
     def _receiver_loop(self):
-        """Continuously read from the UDP socket and dispatch packets."""
+        """Continuously read from the UDP socket, validate, and discard commands."""
         while self._running and rclpy.ok():
             try:
                 data, _addr = self._sock.recvfrom(4096)
@@ -428,279 +497,48 @@ class GCSBridgeNode(Node):
                     break
                 pkt_id, payload, _consumed = result
                 self._rx_packet_count += 1
-                self._dispatch_command(pkt_id, payload)
+                # ── ALL commands are logged and discarded ───────────────
+                self._log_disabled_command(pkt_id, payload)
 
             # Avoid busy-waiting when no data
             if not self._rx_buf:
                 time.sleep(0.001)
 
-    def _dispatch_command(self, pkt_id: int, payload: bytes):
-        """Route a received packet to its handler."""
-        if pkt_id == CMD_MOTION:
-            self._handle_motion(payload)
-        elif pkt_id == CMD_MODE:
-            self._handle_mode(payload)
-        elif pkt_id == CMD_GRIPPER:
-            self._handle_gripper(payload)
-        elif pkt_id == CMD_BALLAST:
-            self._handle_ballast(payload)
-        elif pkt_id == CMD_ARM:
-            self._handle_arm(payload)
-        elif pkt_id == CMD_ESTOP:
-            self._handle_estop()
+    def _log_disabled_command(self, pkt_id: int, payload: bytes):
+        """
+        Log received uplink commands as disabled.
+
+        In telemetry-only mode, ALL uplink commands (motion, mode, arm,
+        gripper, ballast, estop) are received and CRC-validated for link
+        diagnostic purposes, but NONE are forwarded to the Pixhawk.
+
+        This prevents sysid collision with QGroundControl on the MAVLink bus
+        while still allowing the GCS operator to verify that the UDP command
+        channel (port 5001) is functioning.
+        """
+        cmd_name = _CMD_NAMES.get(pkt_id, f'0x{pkt_id:02X}')
+
+        # Provide helpful context for each command type
+        guidance = {
+            0x81: 'Use QGC joystick instead.',
+            0x82: 'Use QGC flight mode selector instead.',
+            0x83: 'Gripper control via QGC only.',
+            0x84: 'Ballast control via QGC only.',
+            0x85: 'Use QGC arm/disarm toolbar instead.',
+            0x86: 'E-STOP must be triggered via QGC or hardware switch.',
+        }.get(pkt_id, '')
+
+        if guidance:
+            self.get_logger().warn(
+                f'⛔ Uplink command REJECTED: {cmd_name} (0x{pkt_id:02X}) — '
+                f'{guidance} '
+                f'[telemetry-only mode, payload={len(payload)}B]')
         else:
             self.get_logger().debug(
-                f'Unknown packet ID: 0x{pkt_id:02X} (len={len(payload)})')
-
-    # ── Motion handler ───────────────────────────────────────────────────
-    def _handle_motion(self, payload: bytes):
-        """CMD_MOTION (0x81): payload = <6h (surge, sway, heave, yaw, pitch, roll)."""
-        if len(payload) != 12:
-            self.get_logger().warn(
-                f'Invalid CMD_MOTION payload length: {len(payload)} (expected 12)')
-            return
-        values = struct.unpack('<6h', payload)
-        with self._state_lock:
-            self._latest_motion = values
-
-        # ── Throttled motion logging ──────────────────────────────────
-        # Only log when the pilot is actively commanding (at least one
-        # axis non-zero), and at most once every 0.5 s to avoid flooding
-        # the terminal at 10–20 Hz input rates.
-        surge, sway, heave, yaw, pitch, roll = values
-        if any(v != 0 for v in values):
-            now = time.monotonic()
-            if now - self._last_motion_log_time >= 0.5:
-                self._last_motion_log_time = now
-                self.get_logger().info(
-                    f'🎮 Motion: '
-                    f'surge={surge:+5d}  sway={sway:+5d}  heave={heave:+5d}  '
-                    f'yaw={yaw:+5d}  pitch={pitch:+5d}  roll={roll:+5d}'
-                )
-
-    # ── Mode handler ─────────────────────────────────────────────────────
-    def _handle_mode(self, payload: bytes):
-        """CMD_MODE (0x82): payload = <B (mode_id).  Calls /mavros/set_mode."""
-        if len(payload) != 1:
-            self.get_logger().warn(
-                f'Invalid CMD_MODE payload length: {len(payload)} (expected 1)')
-            return
-        mode_id = struct.unpack('<B', payload)[0]
-        mode_str = MODE_MAP.get(mode_id)
-        if mode_str is None:
-            self.get_logger().warn(f'Unknown mode ID: {mode_id}')
-            return
-
-        self.get_logger().info(f'Mode change requested: {mode_id} → "{mode_str}"')
-
-        if not self._setmode_cli.wait_for_service(timeout_sec=2.0):
-            self.get_logger().error('SetMode service not available')
-            return
-
-        req = SetMode.Request()
-        req.custom_mode = mode_str
-        # base_mode = 0 means we use custom_mode (ArduSub convention)
-        req.base_mode = 0
-
-        future = self._setmode_cli.call_async(req)
-        # Wait safely without spinning — MultiThreadedExecutor handles it
-        start_time = time.monotonic()
-        while not future.done() and (time.monotonic() - start_time) < 3.0:
-            time.sleep(0.01)
-
-        if future.result() is not None and future.result().mode_sent:
-            self.get_logger().info(f'Mode set to "{mode_str}" — sending ACK')
-            self._send_ack(CMD_MODE)
-        else:
-            self.get_logger().error(f'Failed to set mode "{mode_str}"')
-
-    # ── Gripper handler ──────────────────────────────────────────────────
-    def _handle_gripper(self, payload: bytes):
-        """CMD_GRIPPER (0x83): payload = <B (0=stop, 1=open, 2=close).
-        Calls /mavros/cmd/command with MAV_CMD_DO_SET_SERVO."""
-        if len(payload) != 1:
-            self.get_logger().warn(
-                f'Invalid CMD_GRIPPER payload length: {len(payload)} (expected 1)')
-            return
-        state = struct.unpack('<B', payload)[0]
-
-        pwm_map = {
-            0: GRIPPER_PWM_STOP,
-            1: GRIPPER_PWM_OPEN,
-            2: GRIPPER_PWM_CLOSE,
-        }
-        pwm = pwm_map.get(state)
-        if pwm is None:
-            self.get_logger().warn(f'Unknown gripper state: {state}')
-            return
-
-        state_names = {0: 'STOP', 1: 'OPEN', 2: 'CLOSE'}
-        self.get_logger().info(
-            f'Gripper: {state_names.get(state, "?")} → PWM {pwm} µs on servo {GRIPPER_SERVO_PIN}')
-
-        if not self._command_cli.wait_for_service(timeout_sec=2.0):
-            self.get_logger().error('CommandLong service not available')
-            return
-
-        req = CommandLong.Request()
-        req.broadcast = False
-        req.command   = MAV_CMD_DO_SET_SERVO
-        req.confirmation = 0
-        req.param1 = float(GRIPPER_SERVO_PIN)   # servo number
-        req.param2 = float(pwm)                  # PWM in microseconds
-        req.param3 = 0.0
-        req.param4 = 0.0
-        req.param5 = 0.0
-        req.param6 = 0.0
-        req.param7 = 0.0
-
-        future = self._command_cli.call_async(req)
-        # Wait safely without spinning — MultiThreadedExecutor handles it
-        start_time = time.monotonic()
-        while not future.done() and (time.monotonic() - start_time) < 3.0:
-            time.sleep(0.01)
-
-        if future.result() is not None and future.result().success:
-            self.get_logger().info('Gripper command accepted')
-        else:
-            self.get_logger().error('Gripper command failed')
-
-    # ── Ballast handler ──────────────────────────────────────────────────
-    def _handle_ballast(self, payload: bytes):
-        """CMD_BALLAST (0x84): payload = <B.  Parsed but ignored (no hardware)."""
-        if len(payload) >= 1:
-            state = struct.unpack('<B', payload[:1])[0]
-            self.get_logger().debug(
-                f'Ballast command received (state={state}) — no hardware, ignored')
-        else:
-            self.get_logger().debug('Ballast command received — ignored (no hardware)')
-
-    # ── Arm handler ──────────────────────────────────────────────────────
-    def _handle_arm(self, payload: bytes):
-        """CMD_ARM (0x85): payload = <B (1=ARM, 0=DISARM).  Calls /mavros/cmd/arming."""
-        if len(payload) != 1:
-            self.get_logger().warn(
-                f'Invalid CMD_ARM payload length: {len(payload)} (expected 1)')
-            return
-        arm_val = struct.unpack('<B', payload)[0]
-        arm = bool(arm_val)
-
-        label = 'ARM' if arm else 'DISARM'
-        self.get_logger().info(f'{label} requested')
-
-        if not self._arming_cli.wait_for_service(timeout_sec=2.0):
-            self.get_logger().error('Arming service not available')
-            return
-
-        req = CommandBool.Request()
-        req.value = arm
-
-        future = self._arming_cli.call_async(req)
-        # Wait safely without spinning — MultiThreadedExecutor handles it
-        start_time = time.monotonic()
-        while not future.done() and (time.monotonic() - start_time) < 3.0:
-            time.sleep(0.01)
-
-        if future.result() is not None and future.result().success:
-            # ── Prominent ARM / DISARM confirmation ──────────────────
-            if arm:
-                self.get_logger().info(
-                    '\n'
-                    '  \033[1;32m╔══════════════════════════════════════════════╗\033[0m\n'
-                    '  \033[1;32m║   █████╗ ██████╗ ███╗   ███╗███████╗██████╗  ║\033[0m\n'
-                    '  \033[1;32m║  ██╔══██╗██╔══██╗████╗ ████║██╔════╝██╔══██╗ ║\033[0m\n'
-                    '  \033[1;32m║  ███████║██████╔╝██╔████╔██║█████╗  ██║  ██║ ║\033[0m\n'
-                    '  \033[1;32m║  ██╔══██║██╔══██╗██║╚██╔╝██║██╔══╝  ██║  ██║ ║\033[0m\n'
-                    '  \033[1;32m║  ██║  ██║██║  ██║██║ ╚═╝ ██║███████╗██████╔╝ ║\033[0m\n'
-                    '  \033[1;32m║  ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═════╝  ║\033[0m\n'
-                    '  \033[1;32m║         ROV IS ARMED — THRUSTERS LIVE        ║\033[0m\n'
-                    '  \033[1;32m╚══════════════════════════════════════════════╝\033[0m'
-                )
-            else:
-                self.get_logger().info(
-                    '\n'
-                    '  \033[1;33m╔══════════════════════════════════════════════════════╗\033[0m\n'
-                    '  \033[1;33m║     ██████╗ ██╗███████╗ █████╗ ██████╗ ███╗   ███╗   ║\033[0m\n'
-                    '  \033[1;33m║     ██╔══██╗██║██╔════╝██╔══██╗██╔══██╗████╗ ████║   ║\033[0m\n'
-                    '  \033[1;33m║     ██║  ██║██║███████╗███████║██████╔╝██╔████╔██║   ║\033[0m\n'
-                    '  \033[1;33m║     ██║  ██║██║╚════██║██╔══██║██╔══██╗██║╚██╔╝██║   ║\033[0m\n'
-                    '  \033[1;33m║     ██████╔╝██║███████║██║  ██║██║  ██║██║ ╚═╝ ██║   ║\033[0m\n'
-                    '  \033[1;33m║     ╚═════╝ ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝   ║\033[0m\n'
-                    '  \033[1;33m║           ROV DISARMED — THRUSTERS SAFE              ║\033[0m\n'
-                    '  \033[1;33m╚══════════════════════════════════════════════════════╝\033[0m'
-                )
-            self._send_ack(CMD_ARM)
-        else:
-            self.get_logger().error(f'{label} failed — '
-                                    f'result: {future.result()}')
-
-    # ── E-STOP handler ───────────────────────────────────────────────────
-    def _handle_estop(self):
-        """
-        CMD_ESTOP (0x86): empty payload.
-
-        Emergency stop sequence:
-          1. Disarm the Pixhawk immediately via the arming service.
-          2. Send an ACK back to the GCS so the operator knows the command
-             was processed.
-          3. Sleep briefly to allow the UDP ACK packet to flush through the
-             network stack before the interface goes down.
-          4. Power off the Jetson Orin Nano via ``sudo poweroff``.
-
-        .. important::
-           The Linux user running this ROS2 node **must** have passwordless
-           sudo permissions for ``/usr/sbin/poweroff``.  Add the following
-           line to ``/etc/sudoers`` (via ``visudo``)::
-
-               <username> ALL=(ALL) NOPASSWD: /usr/sbin/poweroff
-
-           Replace ``<username>`` with the actual user account (e.g.
-           ``icad`` or ``jetson``).
-        """
-        self.get_logger().warn('⚠ E-STOP TRIGGERED — disarming immediately!')
-
-        # Step 1: Disarm the Pixhawk -------------------------------------------
-        if not self._arming_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().error('E-STOP: arming service not available!')
-        else:
-            req = CommandBool.Request()
-            req.value = False
-
-            future = self._arming_cli.call_async(req)
-            # Wait safely without spinning — MultiThreadedExecutor handles it
-            start_time = time.monotonic()
-            while not future.done() and (time.monotonic() - start_time) < 3.0:
-                time.sleep(0.01)
-
-            if future.result() is not None and future.result().success:
-                self.get_logger().info('E-STOP: disarm successful')
-            else:
-                self.get_logger().error(
-                    'E-STOP: disarm FAILED — check flight controller connection!')
-
-        # Step 2: Acknowledge the E-STOP command to the GCS --------------------
-        self._send_ack(CMD_ESTOP)
-        self.get_logger().info('E-STOP: ACK sent to GCS')
-
-        # Step 3: Flush the UDP packet before the network goes down ------------
-        time.sleep(0.5)
-
-        # Step 4: Power off the Jetson Orin Nano ------------------------------
-        self.get_logger().warn('E-STOP: shutting down Jetson NOW!')
-        try:
-            subprocess.run(
-                ['sudo', 'poweroff'],
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except FileNotFoundError:
-            self.get_logger().fatal(
-                'E-STOP: "poweroff" not found — '
-                'Jetson shutdown FAILED!  Power off manually.')
+                f'Unknown packet ID: 0x{pkt_id:02X} (len={len(payload)}) — ignored')
 
     # ═══════════════════════════════════════════════════════════════════════
-    #  MAVROS subscriber callbacks
+    #  MAVROS subscriber callbacks  (DOWNLINK — ALL ACTIVE)
     # ═══════════════════════════════════════════════════════════════════════
     def _imu_callback(self, msg: Imu):
         """Store orientation (roll, pitch, yaw) from MAVROS IMU data."""
@@ -818,43 +656,32 @@ class GCSBridgeNode(Node):
                 f'"{qr_data}" ({str_len}B payload)')
 
     # ═══════════════════════════════════════════════════════════════════════
-    #  Timer callbacks  (publish to MAVROS / send to GCS)
+    #  Timer callbacks  (TELEMETRY BROADCAST — ACTIVE)
     # ═══════════════════════════════════════════════════════════════════════
-    def _publish_manual_control(self):
-        """
-        Publish the latest motion command to /mavros/manual_control/send at
-        the configured rate (default 10 Hz).
 
-        ManualControl fields (ArduSub convention):
-          x → surge   (forward/back)
-          y → sway    (left/right)
-          z → heave   (up/down, positive = up in ArduSub)
-          r → yaw
-          Aux buttons are unused here — yaw/pitch/roll mapped to axes.
-        """
-        with self._state_lock:
-            surge, sway, heave, yaw, pitch, roll = self._latest_motion
-
-        msg = ManualControl()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.x   = float(surge)   # surge
-        msg.y   = float(sway)    # sway
-        msg.z   = float(heave)   # heave (ArduSub: positive = up)
-        msg.r   = float(yaw)     # yaw
-        # Pitch and roll are not directly supported by ManualControl's standard
-        # axes; ArduSub reads buttons for extra axes.  We pack pitch/roll into
-        # the button field as a bitmask (ArduSub-specific extension).
-        #   buttons = (pitch_clamped << 16) | (roll_clamped & 0xFFFF)
-        pitch_clamped = max(-1000, min(1000, pitch))
-        roll_clamped  = max(-1000, min(1000, roll))
-        msg.buttons = ((pitch_clamped & 0xFFFF) << 16) | (roll_clamped & 0xFFFF)
-
-        self._manual_pub.publish(msg)
+    # ── _publish_manual_control — REMOVED ──────────────────────────────────
+    #
+    # This method previously published ManualControl messages to
+    # /mavros/manual_control/send at 10 Hz based on incoming CMD_MOTION
+    # packets.  It has been removed because QGroundControl now owns the
+    # exclusive MAVLink control path.
+    #
+    # Restoring it would cause MAVLink sysid collisions between this
+    # node (sysid = MAVROS component) and QGC (sysid = 255), leading to
+    # the Pixhawk alternating between two control sources and becoming
+    # unresponsive to both.
+    #
+    # def _publish_manual_control(self):
+    #     ...  # REMOVED — see commit 5a1edb0 for original implementation
 
     def _publish_telemetry(self):
         """
         Assemble and transmit TELEM_IMU, TELEM_DEPTH, and TELEM_STATUS packets
         to the GCS at the configured rate (default 20 Hz).
+
+        This is the sole active timer callback in telemetry-only mode.
+        All binary packet structures are preserved exactly for compatibility
+        with the custom PyQt5 GCS.
         """
         if self._sock is None:
             return

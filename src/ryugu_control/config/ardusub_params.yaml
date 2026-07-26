@@ -25,15 +25,20 @@ ardusub:
 # SERVO12_FUNCTION = 36 (Motor4)   → AUX 4
 # SERVO13_FUNCTION = 37 (Motor5)   → AUX 5
 # SERVO14_FUNCTION = 38 (Motor6)   → AUX 6
-# SERVO1_FUNCTION  = 59 (Gripper)  → MAIN 1
+# SERVO1_FUNCTION  = 0  (Disabled/GPIO) → MAIN 1 (CRITICAL: Must be 0 for MAV_CMD_DO_SET_SERVO override)
 
 # ── Gripper Configuration (Reference — set via Pixhawk parameters) ─────────
-# GRIP_ENABLE  = 1
-# GRIP_TYPE    = 1 (Servo)
+# For direct MAV_CMD_DO_SET_SERVO (Command 183) via MAVROS:
+# Set SERVO1_FUNCTION = 0 so ServoRelayEvents does not reject Channel 1 as "in use".
 # SERVO1_MIN   = 1000
 # SERVO1_MAX   = 2000
 # SERVO1_TRIM  = 1500
 
+# ── Protocol & Safety System Parameters (Reference) ────────────────────────
+# SYSID_MYGCS      = 255  (Matches MAVROS GCS System ID)
+# RC_OVERRIDE_TIME = 3.0  (Manual control timeout in seconds)
+# JS_GAIN_DEFAULT  = 1.0  (Default joystick gain multiplier)
+
 # ── DSHOT Configuration (Reference — set via Pixhawk parameters) ───────────
-# MOT_PWM_TYPE = 4 (DShot150) or 5 (DShot300) or 6 (DShot600)
+# MOT_PWM_TYPE = 6 (DShot600)
 # BRD_PWM_COUNT = 0 (All AUX outputs as DSHOT, no MAIN outputs as PWM motors)
