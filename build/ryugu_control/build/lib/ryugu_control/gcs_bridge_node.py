@@ -13,17 +13,18 @@ Architecture:
                                                       Pixhawk 2.4.8 (ArduSub v4.5.7)
 
 Uplink (GCS → Pixhawk):
-  - CMD_MOTION  (0x81) → /mavros/manual_control/send  @ 10 Hz
+  - CMD_MOTION  (0x81) → /mavros/manual_control/send   @ 10 Hz
   - CMD_MODE    (0x82) → /mavros/set_mode              (ACK)
   - CMD_GRIPPER (0x83) → /mavros/cmd/command           (MAV_CMD_DO_SET_SERVO)
   - CMD_BALLAST (0x84) → parsed, no hardware action
   - CMD_ARM     (0x85) → /mavros/cmd/arming            (ACK)
-  - CMD_ESTOP   (0x86) → disarm immediately             (ACK)
+  - CMD_ESTOP   (0x86) → disarm immediately            (ACK)
 
 Downlink (Pixhawk → GCS):
-  - TELEM_IMU    (0x01): pitch, roll, yaw (°)          @ 20 Hz
+  - TELEM_IMU    (0x01): pitch, roll, yaw (°)           @ 20 Hz
   - TELEM_DEPTH  (0x02): depth_m, altitude_m            @ 20 Hz
   - TELEM_STATUS (0x03): battery, arm, mode, thrusters  @ 20 Hz
+  - TELEM_QR     (0x04): QR code string (on-detection)  event-driven, throttled to 1 Hz
 
 Packet Format:
   [SYNC: 0xAA55 LE (2B)] [ID (1B)] [LEN (2B LE)] [PAYLOAD (0..1024B)] [CRC-16 (2B)]
@@ -37,20 +38,22 @@ Usage:
 import math
 import socket
 import struct
+import subprocess
 import threading
 import time
 from typing import Optional
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 # ── MAVROS message & service types ──────────────────────────────────────────
-from mavros_msgs.msg import ManualControl, RCOut, State, Altitude
+from mavros_msgs.msg import ManualControl, OverrideRCIn, RCOut, State, Altitude
 from mavros_msgs.srv import CommandBool, CommandLong, SetMode
 from sensor_msgs.msg import BatteryState, Imu
-from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  CRC-16/CCITT-FALSE  (poly=0x1021, init=0xFFFF, no reflection)
@@ -98,14 +101,15 @@ CMD_ESTOP    = 0x86
 TELEM_IMU    = 0x01
 TELEM_DEPTH  = 0x02
 TELEM_STATUS = 0x03
+TELEM_QR     = 0x04
 ACK          = 0xF0
 
 # ── Mode mapping: protocol ID → ArduSub custom_mode string ──
 MODE_MAP = {
-    0: 'MANUAL',
-    1: 'STABILIZE',
-    2: 'ALT_HOLD',
-    3: 'AUTO',
+    0: '0',  # MANUAL
+    1: '1',  # STABILIZE
+    2: '2',  # ALT_HOLD
+    3: '3',  # AUTO
 }
 
 # ── Gripper constants ──
@@ -283,12 +287,18 @@ class GCSBridgeNode(Node):
         # Motion logging throttle (avoid CLI flood at 10–20 Hz input rate)
         self._last_motion_log_time: float = 0.0
 
+        # QR telemetry throttling — avoid flooding GCS with duplicate data
+        self._last_qr_sent_data: str = ''
+        self._last_qr_send_time: float = 0.0
+
         # ── Callback group (reentrant for multi-threaded executor) ─────
         self._cb_group = ReentrantCallbackGroup()
 
         # ── Publishers ─────────────────────────────────────────────────
         self._manual_pub = self.create_publisher(
             ManualControl, '/mavros/manual_control/send', 10)
+        self._rc_override_pub = self.create_publisher(
+            OverrideRCIn, '/mavros/rc/override', 10)
 
         # ── Service clients ────────────────────────────────────────────
         self._arming_cli  = self.create_client(CommandBool, '/mavros/cmd/arming')
@@ -296,25 +306,22 @@ class GCSBridgeNode(Node):
         self._command_cli = self.create_client(CommandLong, '/mavros/cmd/command')
 
         # ── Subscribers ────────────────────────────────────────────────
-        # Pose (EKF-fused orientation for TELEM_IMU)
-        self._pose_sub = self.create_subscription(
-            PoseStamped, '/mavros/local_position/pose',
-            self._pose_callback, 10, callback_group=self._cb_group)
-
-        # IMU data (fallback for orientation)
+        # IMU data (primary source for orientation — always active, GPS-independent)
         self._imu_sub = self.create_subscription(
-            Imu, '/mavros/imu_data',
-            self._imu_callback, 10, callback_group=self._cb_group)
+            Imu, '/mavros/imu/data',
+            self._imu_callback, qos_profile_sensor_data, callback_group=self._cb_group)
 
         # Altitude / depth
         self._alt_sub = self.create_subscription(
             Altitude, '/mavros/altitude',
-            self._altitude_callback, 10, callback_group=self._cb_group)
+            self._altitude_callback, qos_profile_sensor_data,
+            callback_group=self._cb_group)
 
         # Battery
         self._batt_sub = self.create_subscription(
             BatteryState, '/mavros/battery',
-            self._battery_callback, 10, callback_group=self._cb_group)
+            self._battery_callback, qos_profile_sensor_data,
+            callback_group=self._cb_group)
 
         # Vehicle state (arm, mode)
         self._state_sub = self.create_subscription(
@@ -325,6 +332,16 @@ class GCSBridgeNode(Node):
         self._rcout_sub = self.create_subscription(
             RCOut, '/mavros/rc/out',
             self._rcout_callback, 10, callback_group=self._cb_group)
+
+        # QR code data from webcam_streamer (per-camera topics)
+        self._qr_front_sub = self.create_subscription(
+            String, '/ryugu/qr/front',
+            lambda msg: self._handle_qr_callback(msg.data, 0),
+            10, callback_group=self._cb_group)
+        self._qr_bottom_sub = self.create_subscription(
+            String, '/ryugu/qr/bottom',
+            lambda msg: self._handle_qr_callback(msg.data, 1),
+            10, callback_group=self._cb_group)
 
         # ── Timers ─────────────────────────────────────────────────────
         self._manual_timer = self.create_timer(
@@ -488,8 +505,10 @@ class GCSBridgeNode(Node):
         req.base_mode = 0
 
         future = self._setmode_cli.call_async(req)
-        # Wait synchronously in the receiver thread
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # Wait safely without spinning — MultiThreadedExecutor handles it
+        start_time = time.monotonic()
+        while not future.done() and (time.monotonic() - start_time) < 3.0:
+            time.sleep(0.01)
 
         if future.result() is not None and future.result().mode_sent:
             self.get_logger().info(f'Mode set to "{mode_str}" — sending ACK')
@@ -538,7 +557,10 @@ class GCSBridgeNode(Node):
         req.param7 = 0.0
 
         future = self._command_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # Wait safely without spinning — MultiThreadedExecutor handles it
+        start_time = time.monotonic()
+        while not future.done() and (time.monotonic() - start_time) < 3.0:
+            time.sleep(0.01)
 
         if future.result() is not None and future.result().success:
             self.get_logger().info('Gripper command accepted')
@@ -576,7 +598,10 @@ class GCSBridgeNode(Node):
         req.value = arm
 
         future = self._arming_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+        # Wait safely without spinning — MultiThreadedExecutor handles it
+        start_time = time.monotonic()
+        while not future.done() and (time.monotonic() - start_time) < 3.0:
+            time.sleep(0.01)
 
         if future.result() is not None and future.result().success:
             # ── Prominent ARM / DISARM confirmation ──────────────────
@@ -613,60 +638,80 @@ class GCSBridgeNode(Node):
 
     # ── E-STOP handler ───────────────────────────────────────────────────
     def _handle_estop(self):
-        """CMD_ESTOP (0x86): empty payload.  Immediately disarm via arming service."""
+        """
+        CMD_ESTOP (0x86): empty payload.
+
+        Emergency stop sequence:
+          1. Disarm the Pixhawk immediately via the arming service.
+          2. Send an ACK back to the GCS so the operator knows the command
+             was processed.
+          3. Sleep briefly to allow the UDP ACK packet to flush through the
+             network stack before the interface goes down.
+          4. Power off the Jetson Orin Nano via ``sudo poweroff``.
+
+        .. important::
+           The Linux user running this ROS2 node **must** have passwordless
+           sudo permissions for ``/usr/sbin/poweroff``.  Add the following
+           line to ``/etc/sudoers`` (via ``visudo``)::
+
+               <username> ALL=(ALL) NOPASSWD: /usr/sbin/poweroff
+
+           Replace ``<username>`` with the actual user account (e.g.
+           ``icad`` or ``jetson``).
+        """
         self.get_logger().warn('⚠ E-STOP TRIGGERED — disarming immediately!')
 
+        # Step 1: Disarm the Pixhawk -------------------------------------------
         if not self._arming_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().error('E-STOP: arming service not available!')
-            return
-
-        req = CommandBool.Request()
-        req.value = False
-
-        future = self._arming_cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
-
-        if future.result() is not None and future.result().success:
-            self.get_logger().info('E-STOP: disarm successful — sending ACK')
-            self._send_ack(CMD_ESTOP)
         else:
-            self.get_logger().error(
-                'E-STOP: disarm FAILED — check flight controller connection!')
-            # Still send ACK so GCS knows we tried
-            self._send_ack(CMD_ESTOP)
+            req = CommandBool.Request()
+            req.value = False
+
+            future = self._arming_cli.call_async(req)
+            # Wait safely without spinning — MultiThreadedExecutor handles it
+            start_time = time.monotonic()
+            while not future.done() and (time.monotonic() - start_time) < 3.0:
+                time.sleep(0.01)
+
+            if future.result() is not None and future.result().success:
+                self.get_logger().info('E-STOP: disarm successful')
+            else:
+                self.get_logger().error(
+                    'E-STOP: disarm FAILED — check flight controller connection!')
+
+        # Step 2: Acknowledge the E-STOP command to the GCS --------------------
+        self._send_ack(CMD_ESTOP)
+        self.get_logger().info('E-STOP: ACK sent to GCS')
+
+        # Step 3: Flush the UDP packet before the network goes down ------------
+        time.sleep(0.5)
+
+        # Step 4: Power off the Jetson Orin Nano ------------------------------
+        self.get_logger().warn('E-STOP: shutting down Jetson NOW!')
+        try:
+            subprocess.run(
+                ['sudo', 'poweroff'],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            self.get_logger().fatal(
+                'E-STOP: "poweroff" not found — '
+                'Jetson shutdown FAILED!  Power off manually.')
 
     # ═══════════════════════════════════════════════════════════════════════
     #  MAVROS subscriber callbacks
     # ═══════════════════════════════════════════════════════════════════════
-    def _pose_callback(self, msg: PoseStamped):
-        """Store EKF-fused orientation for TELEM_IMU."""
-        q = msg.pose.orientation
+    def _imu_callback(self, msg: Imu):
+        """Store orientation (roll, pitch, yaw) from MAVROS IMU data."""
+        q = msg.orientation
         roll, pitch, yaw = quaternion_to_euler_deg(q.x, q.y, q.z, q.w)
         with self._state_lock:
             self._roll  = roll
             self._pitch = pitch
             self._yaw   = yaw
-
-    def _imu_callback(self, msg: Imu):
-        """
-        Fallback IMU orientation — only used if PoseStamped hasn't been received
-        recently.  Overwritten by _pose_callback on each pose update.
-        """
-        # We prioritise EKF pose, so this is a secondary source.
-        # For simplicity, we just store it — the telemetry timer reads whichever
-        # was written last.  Since pose callback typically runs at the same rate,
-        # this acts as a fallback.
-        q = msg.orientation
-        roll, pitch, yaw = quaternion_to_euler_deg(q.x, q.y, q.z, q.w)
-        # Only update if we haven't received a pose recently (tracked via flag)
-        # We use a simple approach: always update from IMU, but pose callback
-        # runs after and overwrites with the better EKF estimate.
-        with self._state_lock:
-            # If no pose has been received (roll/pitch/yaw all zero), use IMU
-            if self._roll == 0.0 and self._pitch == 0.0 and self._yaw == 0.0:
-                self._roll  = roll
-                self._pitch = pitch
-                self._yaw   = yaw
 
     def _altitude_callback(self, msg: Altitude):
         """
@@ -709,6 +754,71 @@ class GCSBridgeNode(Node):
         with self._state_lock:
             self._rc_channels = list(msg.channels)
 
+    def _handle_qr_callback(self, qr_data: str, camera_id: int):
+        """
+        Handle incoming QR data from webcam_streamer.
+
+        Formats a TELEM_QR (0x04) UDP payload with metadata header:
+          [camera_id (1B)] [zone_id (1B)] [valid (1B)] [str_len (1B)] [qr_string (N B)]
+
+        camera_id: 0 = Front, 1 = Bottom
+        zone_id:   parsed from QR string content (SIDE-A=0, SIDE-B=1, SIDE-C=2, SIDE-D=3, default=255)
+        valid:     1 unless the string contains "ERR" or "INVALID"
+
+        Throttling rules (avoid flooding the GCS):
+          - If the QR string differs from the last sent string → send immediately.
+          - If the same QR code is still in view → send at most once per second (1 Hz).
+          - Otherwise → drop (already sent recently).
+        """
+        if not qr_data:
+            return
+
+        # ── Parse zone_id from QR content ──────────────────────────────
+        qr_upper = qr_data.upper()
+        zone_id = 255
+        if "SIDE-A" in qr_upper or "SIDE_A" in qr_upper:
+            zone_id = 0
+        elif "SIDE-B" in qr_upper or "SIDE_B" in qr_upper:
+            zone_id = 1
+        elif "SIDE-C" in qr_upper or "SIDE_C" in qr_upper:
+            zone_id = 2
+        elif "SIDE-D" in qr_upper or "SIDE_D" in qr_upper:
+            zone_id = 3
+
+        # ── Validity check ─────────────────────────────────────────────
+        valid = 0 if ("ERR" in qr_upper or "INVALID" in qr_upper) else 1
+
+        # ── Encode string ──────────────────────────────────────────────
+        qr_bytes = qr_data.encode('utf-8')
+        str_len = min(len(qr_bytes), 255)
+
+        camera_names = {0: 'Front', 1: 'Bottom'}
+
+        now = time.monotonic()
+        should_send = False
+
+        # Build a compound key for throttling (camera + content)
+        throttle_key = f'{camera_id}:{qr_data}'
+        if throttle_key != self._last_qr_sent_data:
+            # New / changed QR code → always send
+            should_send = True
+        elif now - self._last_qr_send_time >= 1.0:
+            # Same QR still in view, but 1 s has elapsed → re-send at 1 Hz
+            should_send = True
+
+        if should_send:
+            # Pack: camera_id (B), zone_id (B), valid (B), str_len (B) + string bytes
+            payload = struct.pack(
+                '<BBBB', camera_id, zone_id, valid, str_len) + qr_bytes[:str_len]
+
+            self._send_packet(TELEM_QR, payload)
+            self._last_qr_sent_data = throttle_key
+            self._last_qr_send_time = now
+            self.get_logger().info(
+                f'QR telemetry sent [{camera_names.get(camera_id, "?")}]: '
+                f'zone={zone_id} valid={valid} '
+                f'"{qr_data}" ({str_len}B payload)')
+
     # ═══════════════════════════════════════════════════════════════════════
     #  Timer callbacks  (publish to MAVROS / send to GCS)
     # ═══════════════════════════════════════════════════════════════════════
@@ -718,30 +828,30 @@ class GCSBridgeNode(Node):
         the configured rate (default 10 Hz).
 
         ManualControl fields (ArduSub convention):
-          x → surge   (forward/back)
-          y → sway    (left/right)
-          z → heave   (up/down, positive = up in ArduSub)
-          r → yaw
-          Aux buttons are unused here — yaw/pitch/roll mapped to axes.
+          x → surge   (-1000 to +1000)
+          y → sway    (-1000 to +1000)
+          z → heave   (0 to 1000, 500 = neutral in ArduSub)
+          r → yaw     (-1000 to +1000)
+
+        Note: 6-thruster Vectored frame does not support active Pitch/Roll control.
         """
         with self._state_lock:
             surge, sway, heave, yaw, pitch, roll = self._latest_motion
 
+        # 1. Publish MAVROS ManualControl message
         msg = ManualControl()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.x   = float(surge)   # surge
-        msg.y   = float(sway)    # sway
-        msg.z   = float(heave)   # heave (ArduSub: positive = up)
-        msg.r   = float(yaw)     # yaw
-        # Pitch and roll are not directly supported by ManualControl's standard
-        # axes; ArduSub reads buttons for extra axes.  We pack pitch/roll into
-        # the button field as a bitmask (ArduSub-specific extension).
-        #   buttons = (pitch_clamped << 16) | (roll_clamped & 0xFFFF)
-        pitch_clamped = max(-1000, min(1000, pitch))
-        roll_clamped  = max(-1000, min(1000, roll))
-        msg.buttons = ((pitch_clamped & 0xFFFF) << 16) | (roll_clamped & 0xFFFF)
+        scale = 0.50  # 50% max power limit
+        msg.x   = float(surge) * scale
+        msg.y   = float(sway)  * scale
+        msg.z   = float(heave) * scale
+        msg.r   = float(yaw)   * scale
+        msg.buttons = 0          # Fix bit-shift uint16 overflow crash
 
         self._manual_pub.publish(msg)
+
+        # OverrideRCIn disabled to avoid conflict with MANUAL_CONTROL MAVLink handling
+        pass
 
     def _publish_telemetry(self):
         """

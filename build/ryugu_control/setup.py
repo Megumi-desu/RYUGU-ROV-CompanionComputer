@@ -1,1 +1,1 @@
-/home/icad/RYUGU-ROV/src/ryugu_control/setup.py
+/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control/setup.py

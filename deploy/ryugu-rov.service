@@ -1,18 +1,66 @@
 [Unit]
-Description=RYUGU ROV ROS2 Main Control Stack
+Description=RYUGU ROV ROS 2 Main Control Stack
+Documentation=https://github.com/your-org/RYUGU-ROV-CompanionComputer
 After=network-online.target mavlink-router.service
 Wants=network-online.target mavlink-router.service
+
+# ── Rationale ───────────────────────────────────────────────────────────────
+# Wants (not Requires): if mavlink-router is missing at boot, ROS still starts
+# and MAVROS will keep retrying its connection.  This is more field-robust —
+# the stack comes up as much as it can rather than refusing to start entirely.
+# After: ensures network *and* mavlink-router are up before ExecStartPre runs.
+# ────────────────────────────────────────────────────────────────────────────
 
 [Service]
 Type=simple
 User=icad
+Group=icad
+WorkingDirectory=/home/icad/RYUGU-ROV-CompanionComputer
+
+# ── Environment ─────────────────────────────────────────────────────────────
+Environment=PYTHONUNBUFFERED=1
+Environment=ROS_DOMAIN_ID=0
+Environment=HOME=/home/icad
+
+# ── Startup ─────────────────────────────────────────────────────────────────
+# Give mavlink-router time to open the serial port and begin MAVLink forwarding
+# before MAVROS tries to connect.  15 s is generous for a Jetson cold boot;
+# reduce to 5–8 s if you move to an NVMe SSD.
 ExecStartPre=/bin/sleep 15
-ExecStart=/home/icad/RYUGU-ROV/deploy/start_rov.sh
-Restart=on-failure
+ExecStart=/home/icad/RYUGU-ROV-CompanionComputer/deploy/start_rov.sh
+
+# ── Resilience ──────────────────────────────────────────────────────────────
+# "always" restarts on ANY exit (crash, signal, OOM kill, Pixhawk reset, …).
+# "on-failure" would miss exit-code-0 shutdowns that aren't intentional.
+Restart=always
 RestartSec=5
-Nice=15
+# Cap restarts so a hard failure (e.g. missing workspace) doesn't loop forever.
+# 3 restarts in 60 s → give up.  Adjust StartLimitIntervalSec if needed.
+StartLimitBurst=3
+StartLimitIntervalSec=60
+
+# ── Logging ─────────────────────────────────────────────────────────────────
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=ryugu-rov
+
+# ── Shutdown ────────────────────────────────────────────────────────────────
+# SIGINT gives ROS 2 launch a chance to destroy nodes in order (SIGTERM would
+# hard-kill the bash wrapper, leaving zombie nodes).
+KillSignal=SIGINT
+TimeoutStopSec=30
+# If SIGINT doesn't work after 30 s, escalate to SIGKILL.
+KillMode=mixed
+SendSIGKILL=yes
+
+# ── Resource Tuning ─────────────────────────────────────────────────────────
+# Lower CPU priority so that kernel threads and mavlink-router stay responsive
+# under full load.  The webcam MJPEG encoder is the main CPU consumer.
+Nice=15
+
+# Raise the file-descriptor limit — ROS 2 + two cameras + sockets can exceed
+# the default 1024 on a busy system.
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target

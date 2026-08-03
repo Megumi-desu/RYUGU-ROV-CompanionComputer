@@ -7,30 +7,30 @@ Operator GCS Laptop and the Pixhawk flight controller via MAVROS.
 
 **HYBRID CONTROL ARCHITECTURE (Refactored 2026-07-27):**
 
-  ┌─────────────────────────────────────────────────────────────────────┐
-  │  CONTROL PATH (Uplink):  Handled 100% by QGroundControl v5.0+       │
-  │                                                                     │
-  │  GCS Laptop (QGC) ──UDP :14550──▶ mavlink-router ──USB Serial──▶ Pixhawk │
-  │                                                                     │
-  │  • Joystick MANUAL_CONTROL messages                                 │
-  │  • Arming / Disarming                                               │
-  │  • Flight Mode switching                                            │
-  │  • Parameter tuning                                                 │
-  │  • All MAVLink command packets (sysid = GCS)                        │
-  └─────────────────────────────────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────────────────────────────────┐
+  │  CONTROL PATH (Uplink):  Handled 100% by QGroundControl v5.0+              │
+  │                                                                            │
+  │  GCS Laptop (QGC) ──UDP :14550──▶ mavlink-router ──USB Serial──▶ Pixhawk  │ 
+  │                                                                            │
+  │  • Joystick MANUAL_CONTROL messages                                        │
+  │  • Arming / Disarming                                                      │
+  │  • Flight Mode switching                                                   │
+  │  • Parameter tuning                                                        │
+  │  • All MAVLink command packets (sysid = GCS)                               │
+  └────────────────────────────────────────────────────────────────────────────┘
 
   ┌─────────────────────────────────────────────────────────────────────┐
   │  TELEMETRY PATH (Downlink):  ROS 2 gcs_bridge_node (THIS NODE)      │
   │                                                                     │
-  │  Pixhawk ──USB Serial──▶ MAVROS ──ROS2 topics──▶ gcs_bridge_node    │
+  │  Pixhawk ──USB Serial──▶ MAVROS ──ROS2 topics──▶ gcs_bridge_node   │
   │                                                     │               │
   │                                          Binary UDP :5002           │
   │                                                     │               │
   │                                               PyQt5 GCS             │
   │                                                                     │
-  │  • TELEM_IMU    (0x01): pitch, roll, yaw (°)          @ 20 Hz      │
-  │  • TELEM_DEPTH  (0x02): depth_m, altitude_m           @ 20 Hz      │
-  │  • TELEM_STATUS (0x03): battery, arm, mode, thrusters @ 20 Hz      │
+  │  • TELEM_IMU    (0x01): pitch, roll, yaw (°)          @ 20 Hz       │
+  │  • TELEM_DEPTH  (0x02): depth_m, altitude_m           @ 20 Hz       │
+  │  • TELEM_STATUS (0x03): battery, arm, mode, thrusters @ 20 Hz       │
   │  • TELEM_QR     (0x04): QR code string (event-driven)               │
   └─────────────────────────────────────────────────────────────────────┘
 
@@ -41,10 +41,13 @@ Operator GCS Laptop and the Pixhawk flight controller via MAVROS.
   └─────────────────────────────────────────────────────────────────────┘
 
 **CRITICAL DESIGN CONSTRAINT:**
-  This node MUST NOT publish any ManualControl, OverrideRCIn, or invoke any
-  MAVROS service calls (arming, set_mode, command).  Doing so would cause
-  MAVLink packet collisions (sysid mismatch / lockout) with QGroundControl
-  on the shared MAVLink bus.  All command execution is disabled by design.
+  This node MUST NOT publish any ManualControl, OverrideRCIn, or invoke
+  MAVROS service calls (set_mode, command) during normal operation.  The
+  SOLE EXCEPTION is the Emergency Stop handler (_handle_estop), which calls
+  /mavros/cmd/arming (value=False) to disarm the Pixhawk when CMD_ESTOP
+  (0x86) is received.  This is a deliberate safety override — sysid
+  collision is acceptable in an emergency.  All other command execution
+  is disabled by design.
 
 Downlink (Pixhawk → GCS):
   - TELEM_IMU    (0x01): pitch, roll, yaw (°)               @ 20 Hz
@@ -64,6 +67,7 @@ Usage:
 import math
 import socket
 import struct
+import subprocess
 import threading
 import time
 from typing import Optional
@@ -75,12 +79,16 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 
 # ── MAVROS message types (telemetry-only subscriptions) ──────────────────
-# NOTE: ManualControl, OverrideRCIn, CommandBool, CommandLong, and SetMode
-#       imports REMOVED — this node operates in TELEMETRY-ONLY mode.
-#       All MAVLink command packets are handled exclusively by QGroundControl.
+# NOTE: ManualControl, OverrideRCIn, CommandLong, and SetMode imports
+#       are intentionally absent — this node operates in TELEMETRY-ONLY mode.
+#       All routine MAVLink command packets are handled exclusively by QGroundControl.
+#
+# EXCEPTION: CommandBool is imported for the EMERGENCY STOP handler (CMD_ESTOP),
+#            which is the sole uplink command this node will execute.
 from mavros_msgs.msg import RCOut, State, Altitude
+from mavros_msgs.srv import CommandBool
 from sensor_msgs.msg import BatteryState, Imu
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  CRC-16/CCITT-FALSE  (poly=0x1021, init=0xFFFF, no reflection)
@@ -117,6 +125,7 @@ CRC_SIZE    = 2
 MAX_PAYLOAD = 1024
 
 # ── GCS → Jetson command IDs (received but NOT executed in telemetry-only mode) ──
+# EXCEPTION: CMD_ESTOP (0x86) is the sole command that IS executed — see _handle_estop()
 CMD_MOTION   = 0x81
 CMD_MODE     = 0x82
 CMD_GRIPPER  = 0x83
@@ -266,17 +275,22 @@ def quaternion_to_euler_deg(qx: float, qy: float, qz: float, qw: float):
 # ═══════════════════════════════════════════════════════════════════════════════
 class GCSBridgeNode(Node):
     """
-    Telemetry-only ROS2 bridge node for the RYUGU ROV.
+    Telemetry-first ROS2 bridge node for the RYUGU ROV.
 
-    **Uplink: DISABLED.**
+    **Uplink: DISABLED (with one critical exception).**
        Incoming binary UDP packets from the GCS are received and CRC-validated,
-       but their commands are NOT executed.  A warning is logged for each
-       received command indicating that the control path is handled exclusively
-       by QGroundControl on the MAVLink bus.
+       but their commands are NOT executed — with the SOLE EXCEPTION of
+       CMD_ESTOP (0x86).
 
-       This prevents sysid mismatch / lockout collisions between this node
-       and QGroundControl when both would otherwise attempt to publish
-       MANUAL_CONTROL or invoke arming/set_mode service calls.
+       CMD_MOTION, CMD_MODE, CMD_GRIPPER, CMD_BALLAST, and CMD_ARM are all
+       logged and discarded.  This prevents sysid mismatch / lockout collisions
+       between this node and QGroundControl when both would otherwise attempt
+       to publish MANUAL_CONTROL or invoke arming/set_mode service calls.
+
+       CMD_ESTOP is intercepted and routed to _handle_estop(), which:
+         1. Publishes Bool(True) to /emergency_stop
+         2. Calls /mavros/cmd/arming (value=False) to disarm the Pixhawk
+         3. Executes 'sudo poweroff' to shut down the Jetson
 
     **Downlink: ACTIVE.**
        Subscribes to MAVROS telemetry topics, packs them into binary UDP
@@ -350,15 +364,18 @@ class GCSBridgeNode(Node):
         #     OverrideRCIn, '/mavros/rc/override', 10)
 
         # ═══════════════════════════════════════════════════════════════════
-        #  SERVICE CLIENTS — DISABLED (Control Path Shutdown)
+        #  SERVICE CLIENTS — EMERGENCY STOP ONLY
         # ═══════════════════════════════════════════════════════════════════
         #
         # Arming, SetMode, and CommandLong service clients are intentionally
-        # removed.  QGroundControl owns all MAVLink service calls.
+        # absent for normal operations — QGroundControl owns all MAVLink service
+        # calls during routine flight.
         #
-        # self._arming_cli  = self.create_client(CommandBool, '/mavros/cmd/arming')
-        # self._setmode_cli = self.create_client(SetMode, '/mavros/set_mode')
-        # self._command_cli = self.create_client(CommandLong, '/mavros/cmd/command')
+        # EXCEPTION: The arming service client is kept SOLELY for the Emergency
+        # Stop handler (_handle_estop) which must disarm the Pixhawk immediately
+        # when CMD_ESTOP (0x86) is received from the GCS.
+        self._arming_cli = self.create_client(
+            CommandBool, '/mavros/cmd/arming')
 
         # ═══════════════════════════════════════════════════════════════════
         #  SUBSCRIBERS — ACTIVE (Telemetry Downlink)
@@ -403,6 +420,19 @@ class GCSBridgeNode(Node):
             10, callback_group=self._cb_group)
 
         # ═══════════════════════════════════════════════════════════════════
+        #  PUBLISHERS — EMERGENCY STOP
+        # ═══════════════════════════════════════════════════════════════════
+        #
+        # Emergency stop status publisher.  Fires once (Bool(True)) when
+        # CMD_ESTOP is received so that any other ROS2 node can react
+        # (e.g. kill thrusters, turn off lights, etc.).
+        self._estop_pub = self.create_publisher(
+            Bool, '/emergency_stop', 10)
+
+        # Prevent double-triggering of the ESTOP sequence
+        self._estop_triggered: bool = False
+
+        # ═══════════════════════════════════════════════════════════════════
         #  TIMERS — TELEMETRY ONLY (Manual Control Timer DISABLED)
         # ═══════════════════════════════════════════════════════════════════
         #
@@ -423,8 +453,8 @@ class GCSBridgeNode(Node):
         self._start_receiver()
 
         self.get_logger().info(
-            f'GCSBridgeNode started in TELEMETRY-ONLY mode — '
-            f'listening on {self._jetson_ip}:{self._cmd_port} (commands DISABLED), '
+            f'GCSBridgeNode started — TELEMETRY-ONLY mode (ESTOP exception) '
+            f'listening on {self._jetson_ip}:{self._cmd_port} (commands DISABLED, ESTOP active), '
             f'sending to {self._gcs_ip}:{self._telem_port} (telemetry ACTIVE)')
 
     # ═══════════════════════════════════════════════════════════════════════
@@ -461,16 +491,16 @@ class GCSBridgeNode(Node):
             pass  # GCS may not be listening yet
 
     # ═══════════════════════════════════════════════════════════════════════
-    #  Receiver thread  (Uplink: GCS → Jetson — COMMANDS DISABLED)
+    #  Receiver thread  (Uplink: GCS → Jetson — commands disabled, ESTOP active)
     # ═══════════════════════════════════════════════════════════════════════
     def _start_receiver(self):
         """
         Launch the background UDP receiver thread.
 
-        The receiver still accepts and CRC-validates incoming packets so
-        that the GCS can verify the UDP link is operational.  However, all
-        received commands are logged and discarded — no MAVROS publications
-        or service calls are made.
+        The receiver accepts and CRC-validates all incoming packets so that
+        the GCS can verify the UDP link is operational.  All received commands
+        are logged and discarded — EXCEPT for CMD_ESTOP (0x86), which triggers
+        the emergency stop sequence (disarm Pixhawk + poweroff Jetson).
         """
         if self._sock is None:
             self.get_logger().warn('Receiver thread not started — no socket')
@@ -479,7 +509,7 @@ class GCSBridgeNode(Node):
         self._receiver_thread = threading.Thread(
             target=self._receiver_loop, name='gcs-udp-rx', daemon=True)
         self._receiver_thread.start()
-        self.get_logger().info('UDP receiver thread started (command execution DISABLED)')
+        self.get_logger().info('UDP receiver thread started (command execution DISABLED, ESTOP active)')
 
     def _receiver_loop(self):
         """Continuously read from the UDP socket, validate, and discard commands."""
@@ -497,7 +527,13 @@ class GCSBridgeNode(Node):
                     break
                 pkt_id, payload, _consumed = result
                 self._rx_packet_count += 1
-                # ── ALL commands are logged and discarded ───────────────
+
+                # ── EMERGENCY STOP is the sole executed uplink command ──
+                if pkt_id == CMD_ESTOP:
+                    self._handle_estop()
+                    continue
+
+                # ── All other commands are logged and discarded ─────────
                 self._log_disabled_command(pkt_id, payload)
 
             # Avoid busy-waiting when no data
@@ -508,9 +544,12 @@ class GCSBridgeNode(Node):
         """
         Log received uplink commands as disabled.
 
-        In telemetry-only mode, ALL uplink commands (motion, mode, arm,
-        gripper, ballast, estop) are received and CRC-validated for link
-        diagnostic purposes, but NONE are forwarded to the Pixhawk.
+        In telemetry-only mode, ALL uplink commands except CMD_ESTOP (0x86) are
+        received and CRC-validated for link diagnostic purposes, but NONE are
+        forwarded to the Pixhawk.
+
+        CMD_ESTOP is intercepted before this method and routed to
+        _handle_estop() — see _receiver_loop for the dispatch.
 
         This prevents sysid collision with QGroundControl on the MAVLink bus
         while still allowing the GCS operator to verify that the UDP command
@@ -525,7 +564,7 @@ class GCSBridgeNode(Node):
             0x83: 'Gripper control via QGC only.',
             0x84: 'Ballast control via QGC only.',
             0x85: 'Use QGC arm/disarm toolbar instead.',
-            0x86: 'E-STOP must be triggered via QGC or hardware switch.',
+            # 0x86 (CMD_ESTOP) is never seen here — handled by _handle_estop()
         }.get(pkt_id, '')
 
         if guidance:
@@ -731,6 +770,124 @@ class GCSBridgeNode(Node):
             *thruster_bytes,
         )
         self._send_packet(TELEM_STATUS, status_payload)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  Emergency Stop handler  (CMD_ESTOP / 0x86)
+    # ═══════════════════════════════════════════════════════════════════════
+    def _handle_estop(self):
+        """
+        Execute the Emergency Stop sequence when CMD_ESTOP (0x86) is received.
+
+        This is the SOLE exception to the telemetry-only rule.  It performs
+        three actions in order:
+
+        1. Publish Bool(True) on /emergency_stop so any other ROS2 node can
+           react (kill thrusters, cut lights, etc.).
+        2. Call /mavros/cmd/arming with value=False to disarm the Pixhawk
+           immediately — stops all thruster and servo output.
+        3. Initiate a system poweroff (sudo poweroff) to shut down the Jetson.
+
+        A guard flag (_estop_triggered) prevents retriggering if CMD_ESTOP
+        is received multiple times.
+        """
+        if self._estop_triggered:
+            self.get_logger().warn(
+                'Emergency Stop already triggered — ignoring duplicate CMD_ESTOP')
+            return
+
+        self._estop_triggered = True
+        self.get_logger().error(
+            '🚨 EMERGENCY STOP ACTIVATED — '
+            'disarming Pixhawk and shutting down Jetson!')
+
+        # ── Step 1: Publish emergency stop status ────────────────────────
+        self._estop_pub.publish(Bool(data=True))
+        self.get_logger().info('ESTEP: Published Bool(True) to /emergency_stop')
+
+        # ── Step 2: Disarm Pixhawk via MAVROS arming service ─────────────
+        self._disarm_pixhawk()
+
+        # ── Step 3: Power off the Jetson ─────────────────────────────────
+        self._poweroff()
+
+    def _disarm_pixhawk(self):
+        """
+        Call /mavros/cmd/arming with value=False to disarm the Pixhawk.
+
+        This stops all thruster and servo output immediately.  We wait up
+        to 3 seconds for the MAVROS service to become available and then
+        send the disarm request asynchronously (non-blocking) so the
+        poweroff sequence can proceed regardless.
+        """
+        # Wait for the arming service to become available
+        if not self._arming_cli.wait_for_service(timeout_sec=3.0):
+            self.get_logger().error(
+                'ESTEP: /mavros/cmd/arming service NOT available — '
+                'Pixhawk may remain armed!')
+            return
+
+        req = CommandBool.Request()
+        req.value = False  # DISARM
+
+        # Fire-and-forget: send the request asynchronously so we don't
+        # block the poweroff sequence if the service call hangs.
+        future = self._arming_cli.call_async(req)
+        self.get_logger().info(
+            'ESTEP: DISARM command sent to Pixhawk via /mavros/cmd/arming')
+
+        # Spin the future briefly to give it a chance to complete before
+        # the system goes down, but don't block indefinitely.
+        try:
+            rclpy.spin_until_future_complete(
+                self, future, timeout_sec=2.0)
+            if future.done() and future.result() is not None:
+                if future.result().success:
+                    self.get_logger().info(
+                        'ESTEP: Pixhawk DISARMED successfully')
+                else:
+                    self.get_logger().error(
+                        'ESTEP: Pixhawk disarm FAILED — '
+                        f'result={future.result().success}')
+            else:
+                self.get_logger().warn(
+                    'ESTEP: Disarm future did not complete within timeout')
+        except Exception as e:
+            self.get_logger().error(
+                f'ESTEP: Error waiting for disarm response: {e}')
+
+    def _poweroff(self):
+        """
+        Shut down the Jetson Orin Nano by running 'sudo poweroff'.
+
+        This is executed in a daemon thread because:
+        - The ROS2 spin loop needs to keep running for a brief moment to
+          allow the disarm request and emergency stop publish to go out.
+        - The poweroff command itself blocks until the system halts.
+
+        A short delay (0.5 s) is inserted before the poweroff to give the
+        ROS2 executor a chance to flush outgoing messages.
+        """
+        def _do_poweroff():
+            time.sleep(0.5)  # Let outgoing messages flush
+            self.get_logger().fatal(
+                'ESTEP: Powering off Jetson NOW — sudo poweroff')
+            try:
+                subprocess.run(
+                    ['sudo', 'poweroff'],
+                    check=False, capture_output=True, text=True, timeout=10)
+            except subprocess.TimeoutExpired:
+                self.get_logger().error(
+                    'ESTEP: sudo poweroff timed out — system may not have halted')
+            except FileNotFoundError:
+                self.get_logger().error(
+                    'ESTEP: sudo not found — cannot power off!')
+            except Exception as e:
+                self.get_logger().error(
+                    f'ESTEP: sudo poweroff failed: {e}')
+
+        t = threading.Thread(
+            target=_do_poweroff, name='estop-poweroff', daemon=True)
+        t.start()
 
     # ═══════════════════════════════════════════════════════════════════════
     #  Lifecycle
