@@ -133,6 +133,7 @@ class CameraCapture:
         self._latest_qr_data: Optional[str] = None
         self._last_qr_scan_time = 0.0
         self._qr_scan_interval = 0.2   # 5 Hz throttle
+        self._latest_qr_objects = []   # cached decoded objects for overlay drawing
 
         # Statistics
         self._frame_count = 0
@@ -170,6 +171,53 @@ class CameraCapture:
             data = self._latest_qr_data
             self._latest_qr_data = None
             return data
+
+    def _draw_qr_overlays(self, frame, decoded_objects):
+        """
+        Draw bounding boxes and text labels for detected QR codes directly
+        onto the BGR frame (in-place).  Called on every frame so overlays
+        persist between detection cycles at full stream FPS.
+
+        Args:
+            frame: OpenCV BGR image (modified in-place).
+            decoded_objects: List of pyzbar Decoded objects.
+        """
+        for obj in decoded_objects:
+            # ── Draw polygon boundary (precise corner points) ────────
+            pts = obj.polygon
+            if pts is not None and len(pts) == 4:
+                pts_array = np.array([(p.x, p.y) for p in pts], dtype=np.int32)
+                cv2.polylines(frame, [pts_array], isClosed=True,
+                              color=(0, 255, 0), thickness=2)
+
+            # ── Draw axis-aligned bounding rectangle ─────────────────
+            x, y, w, h = obj.rect
+            cv2.rectangle(frame, (x, y), (x + w, y + h),
+                          color=(0, 255, 0), thickness=2)
+
+            # ── Draw label text with dark background ─────────────────
+            try:
+                text = obj.data.decode('utf-8')
+            except UnicodeDecodeError:
+                text = obj.data.hex()[:20]   # fallback for binary data
+            if len(text) > 32:
+                text = text[:29] + '...'
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.5
+            font_thickness = 2
+            (tw, th), baseline = cv2.getTextSize(
+                text, font, font_scale, font_thickness)
+
+            label_y = y - 10 if y > 20 else y + h + 20
+            # Filled black background behind text for readability
+            cv2.rectangle(frame,
+                          (x, label_y - th - baseline),
+                          (x + tw, label_y + baseline),
+                          (0, 0, 0), -1)
+            cv2.putText(frame, text, (x, label_y),
+                        font, font_scale, (0, 255, 0), font_thickness,
+                        cv2.LINE_AA)
 
     def start(self):
         """Start the background capture thread."""
@@ -258,12 +306,17 @@ class CameraCapture:
                 # Convert to grayscale for faster & more reliable decoding
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 decoded_objects = pyzbar_decode(gray)
+                self._latest_qr_objects = decoded_objects
                 if decoded_objects:
-                    # Take the first detected QR code
+                    # Take the first detected QR code for ROS publish
                     qr_data = decoded_objects[0].data.decode('utf-8')
                     if qr_data:
                         with self._lock:
                             self._latest_qr_data = qr_data
+
+            # ── Draw QR bounding-box overlays on every frame ───────────
+            if self._latest_qr_objects:
+                self._draw_qr_overlays(frame, self._latest_qr_objects)
 
             # ── Encode to JPEG ──────────────────────────────────────────
             _, jpeg = cv2.imencode(
