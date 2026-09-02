@@ -20,12 +20,15 @@ setup(
         # Config files
         (os.path.join('share', package_name, 'config'),
             glob('config/*.yaml')),
+        # Model files (TensorRT engines)
+        (os.path.join('share', package_name, 'models'),
+            glob('models/*.engine')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='rahmat',
     maintainer_email='rachmatgifari99@gmail.com',
-    description='ROS2 control package for RYUGU ROV — underwater vehicle control via MAVROS and ArduSub v4.5.7',
+    description='ROS2 control package for RYUGU ROV — underwater vehicle control via MAVROS and ArduSub v4.7',
     license='MIT',
     tests_require=['pytest'],
     entry_points={
@@ -33,6 +36,7 @@ setup(
             # Production nodes
             'gcs_bridge_node = ryugu_control.gcs_bridge_node:main',
             'webcam_streamer = ryugu_control.webcam_streamer:main',
+            'hook_detection_node = ryugu_control.hook_detection_node:main',
             # Test / debug nodes
             'test_arming_mode = ryugu_control.test_arming_mode:main',
             'test_thrusters_gripper = ryugu_control.test_thrusters_gripper:main',

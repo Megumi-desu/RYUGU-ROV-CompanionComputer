@@ -1,0 +1,26 @@
+[2.128s] Invoking command in '/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ryugu_control build --build-base /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build install --record /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/install.log --install-scripts $base/lib/ryugu_control --single-version-externally-managed install_data
+[2.778s] running egg_info
+[2.825s] writing ../../build/ryugu_control/ryugu_control.egg-info/PKG-INFO
+[2.826s] writing dependency_links to ../../build/ryugu_control/ryugu_control.egg-info/dependency_links.txt
+[2.827s] writing entry points to ../../build/ryugu_control/ryugu_control.egg-info/entry_points.txt
+[2.829s] writing requirements to ../../build/ryugu_control/ryugu_control.egg-info/requires.txt
+[2.829s] writing top-level names to ../../build/ryugu_control/ryugu_control.egg-info/top_level.txt
+[2.925s] reading manifest file '../../build/ryugu_control/ryugu_control.egg-info/SOURCES.txt'
+[2.927s] writing manifest file '../../build/ryugu_control/ryugu_control.egg-info/SOURCES.txt'
+[2.927s] running build
+[2.927s] running build_py
+[2.929s] running install
+[2.943s] running install_lib
+[2.992s] running install_data
+[2.992s] running install_egg_info
+[3.042s] removing '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control-0.1.0-py3.10.egg-info' (and everything under it)
+[3.049s] Copying ../../build/ryugu_control/ryugu_control.egg-info to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control-0.1.0-py3.10.egg-info
+[3.050s] running install_scripts
+[3.455s] Installing gcs_bridge_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[3.456s] Installing hook_detection_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[3.457s] Installing test_arming_mode script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[3.457s] Installing test_sensor_reader script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[3.457s] Installing test_thrusters_gripper script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[3.458s] Installing webcam_streamer script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[3.459s] writing list of installed files to '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/install.log'
+[3.544s] Invoked command in '/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control' returned '0': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/ryugu_control build --build-base /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build install --record /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/install.log --install-scripts $base/lib/ryugu_control --single-version-externally-managed install_data

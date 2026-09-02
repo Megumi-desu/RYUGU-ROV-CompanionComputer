@@ -1,0 +1,241 @@
+[0.307s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build', '--symlink-install', '--packages-select', 'ryugu_control']
+[0.308s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=True, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=6, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=['ryugu_control'], packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, allow_overriding=[], cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, mixin_files=None, mixin=None, verb_parser=<colcon_mixin.mixin.mixin_argument.MixinArgumentDecorator object at 0xffffaf7e2170>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0xffffaf7e1510>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0xffffaf7e1510>>, mixin_verb=('build',))
+[0.739s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.739s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.739s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.739s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.739s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[0.740s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.740s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/home/icad/RYUGU-ROV-CompanionComputer'
+[0.740s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.740s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[0.740s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[0.741s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[0.741s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[0.741s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[0.741s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[0.741s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[0.741s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[0.770s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[0.770s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[0.770s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[0.770s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[0.771s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[0.771s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.771s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[0.771s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[0.772s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extensions ['ignore', 'ignore_ament_install']
+[0.772s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'ignore'
+[0.772s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'ignore_ament_install'
+[0.772s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extensions ['colcon_pkg']
+[0.772s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'colcon_pkg'
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extensions ['colcon_meta']
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'colcon_meta'
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extensions ['ros']
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'ros'
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extensions ['cmake', 'python']
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'cmake'
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'python'
+[0.773s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extensions ['python_setup_py']
+[0.774s] Level 1:colcon.colcon_core.package_identification:_identify(deploy) by extension 'python_setup_py'
+[0.774s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extensions ['ignore', 'ignore_ament_install']
+[0.774s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'ignore'
+[0.774s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'ignore_ament_install'
+[0.774s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extensions ['colcon_pkg']
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'colcon_pkg'
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extensions ['colcon_meta']
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'colcon_meta'
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extensions ['ros']
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'ros'
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extensions ['cmake', 'python']
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'cmake'
+[0.775s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'python'
+[0.776s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extensions ['python_setup_py']
+[0.776s] Level 1:colcon.colcon_core.package_identification:_identify(deploy/mavlink-router) by extension 'python_setup_py'
+[0.776s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.776s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[0.776s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[0.777s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.777s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[0.777s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[0.777s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['ignore', 'ignore_ament_install']
+[0.777s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ignore'
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ignore_ament_install'
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['colcon_pkg']
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'colcon_pkg'
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['colcon_meta']
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'colcon_meta'
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['ros']
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'ros'
+[0.778s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['cmake', 'python']
+[0.779s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'cmake'
+[0.779s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'python'
+[0.779s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extensions ['python_setup_py']
+[0.779s] Level 1:colcon.colcon_core.package_identification:_identify(scripts) by extension 'python_setup_py'
+[0.779s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ignore', 'ignore_ament_install']
+[0.779s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore'
+[0.779s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore_ament_install'
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_pkg']
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_pkg'
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_meta']
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_meta'
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ros']
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ros'
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['cmake', 'python']
+[0.780s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'cmake'
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python'
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['python_setup_py']
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python_setup_py'
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extensions ['ignore', 'ignore_ament_install']
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extension 'ignore'
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extension 'ignore_ament_install'
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extensions ['colcon_pkg']
+[0.782s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extension 'colcon_pkg'
+[0.782s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extensions ['colcon_meta']
+[0.782s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extension 'colcon_meta'
+[0.782s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extensions ['ros']
+[0.782s] Level 1:colcon.colcon_core.package_identification:_identify(src/ryugu_control) by extension 'ros'
+[0.789s] DEBUG:colcon.colcon_core.package_identification:Package 'src/ryugu_control' with type 'ros.ament_python' and name 'ryugu_control'
+[0.789s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extensions ['ignore', 'ignore_ament_install']
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'ignore'
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'ignore_ament_install'
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extensions ['colcon_pkg']
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'colcon_pkg'
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extensions ['colcon_meta']
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'colcon_meta'
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extensions ['ros']
+[0.791s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'ros'
+[0.791s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extensions ['cmake', 'python']
+[0.791s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'cmake'
+[0.791s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'python'
+[0.791s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extensions ['python_setup_py']
+[0.791s] Level 1:colcon.colcon_core.package_identification:_identify(tests) by extension 'python_setup_py'
+[0.792s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extensions ['ignore', 'ignore_ament_install']
+[0.792s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'ignore'
+[0.792s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'ignore_ament_install'
+[0.792s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extensions ['colcon_pkg']
+[0.792s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'colcon_pkg'
+[0.792s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extensions ['colcon_meta']
+[0.792s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'colcon_meta'
+[0.793s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extensions ['ros']
+[0.793s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'ros'
+[0.793s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extensions ['cmake', 'python']
+[0.793s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'cmake'
+[0.793s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'python'
+[0.793s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extensions ['python_setup_py']
+[0.793s] Level 1:colcon.colcon_core.package_identification:_identify(tests/comm) by extension 'python_setup_py'
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extensions ['ignore', 'ignore_ament_install']
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'ignore'
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'ignore_ament_install'
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extensions ['colcon_pkg']
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'colcon_pkg'
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extensions ['colcon_meta']
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'colcon_meta'
+[0.794s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extensions ['ros']
+[0.795s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'ros'
+[0.795s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extensions ['cmake', 'python']
+[0.795s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'cmake'
+[0.795s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'python'
+[0.795s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extensions ['python_setup_py']
+[0.795s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control) by extension 'python_setup_py'
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extensions ['ignore', 'ignore_ament_install']
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'ignore'
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'ignore_ament_install'
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extensions ['colcon_pkg']
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'colcon_pkg'
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extensions ['colcon_meta']
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'colcon_meta'
+[0.796s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extensions ['ros']
+[0.797s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'ros'
+[0.797s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extensions ['cmake', 'python']
+[0.797s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'cmake'
+[0.797s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'python'
+[0.797s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extensions ['python_setup_py']
+[0.797s] Level 1:colcon.colcon_core.package_identification:_identify(tests/control/__pycache__) by extension 'python_setup_py'
+[0.797s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extensions ['ignore', 'ignore_ament_install']
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'ignore'
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'ignore_ament_install'
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extensions ['colcon_pkg']
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'colcon_pkg'
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extensions ['colcon_meta']
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'colcon_meta'
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extensions ['ros']
+[0.798s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'ros'
+[0.799s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extensions ['cmake', 'python']
+[0.799s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'cmake'
+[0.799s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'python'
+[0.799s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extensions ['python_setup_py']
+[0.799s] Level 1:colcon.colcon_core.package_identification:_identify(tests/streaming) by extension 'python_setup_py'
+[0.799s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.799s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[0.799s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[0.800s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[0.800s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[0.883s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) check parameters
+[0.884s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) discover
+[0.889s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 279 installed packages in /opt/ros/humble
+[0.893s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) using defaults
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'cmake_args' from command line to 'None'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'cmake_target' from command line to 'None'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'cmake_clean_cache' from command line to 'False'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'cmake_clean_first' from command line to 'False'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'cmake_force_configure' from command line to 'False'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'ament_cmake_args' from command line to 'None'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'catkin_cmake_args' from command line to 'None'
+[0.990s] Level 5:colcon.colcon_core.verb:set package 'ryugu_control' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.991s] DEBUG:colcon.colcon_core.verb:Building package 'ryugu_control' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control', 'merge_install': False, 'path': '/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control', 'symlink_install': True, 'test_result_base': None}
+[0.991s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.999s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[1.000s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control' with build type 'ament_python'
+[1.000s] Level 1:colcon.colcon_core.shell:create_environment_hook('ryugu_control', 'ament_prefix_path')
+[1.008s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[1.008s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/hook/ament_prefix_path.ps1'
+[1.010s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/hook/ament_prefix_path.dsv'
+[1.012s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/hook/ament_prefix_path.sh'
+[1.014s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.015s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.750s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control'
+[1.751s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.751s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[2.615s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools commands: bdist, develop, dist_info, sdist, check, bdist_egg, easy_install, register, build, test, build_clib, clean, bdist_dumb, install_lib, symlink_data, saveopts, build_scripts, install_data, egg_info, bdist_rpm, upload_docs, upload, bdist_wheel, build_py, install_scripts, install_headers, install_egg_info, alias, build_ext, rotate, install, setopt
+[3.414s] DEBUG:colcon.colcon_core.task.python.build:Available setuptools 'develop' options: --install-dir, --prefix, --editable, --user, --script-dir, --index-url, --uninstall, --always-unzip, --egg-path, --verbose, --quiet, --local-snapshots-ok, --help, --allow-hosts, --install-layout, --upgrade, --optimize, --always-copy, --version, --zip-ok, --site-dirs, --exclude-scripts, --no-user-cfg, --build-directory, --force-installation-into-system-dir, --dry-run, --no-deps, --multi-version, --no-find-links, --record, --find-links
+[3.426s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build --no-deps symlink_data
+[4.610s] Level 1:colcon.colcon_core.shell:create_environment_hook('ryugu_control', 'pythonpath_develop')
+[4.612s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/share/ryugu_control/hook/pythonpath_develop.ps1'
+[4.614s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control' returned '0': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build --no-deps symlink_data
+[4.615s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/share/ryugu_control/hook/pythonpath_develop.dsv'
+[4.617s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/share/ryugu_control/hook/pythonpath_develop.sh'
+[4.627s] Level 1:colcon.colcon_core.environment:checking '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control' for CMake module files
+[4.629s] Level 1:colcon.colcon_core.environment:checking '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control' for CMake config files
+[4.632s] Level 1:colcon.colcon_core.environment:checking '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib'
+[4.633s] Level 1:colcon.colcon_core.environment:checking '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/bin'
+[4.633s] Level 1:colcon.colcon_core.environment:checking '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/pkgconfig/ryugu_control.pc'
+[4.634s] Level 1:colcon.colcon_core.environment:checking '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages'
+[4.634s] Level 1:colcon.colcon_core.shell:create_environment_hook('ryugu_control', 'pythonpath')
+[4.635s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/hook/pythonpath.ps1'
+[4.637s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/hook/pythonpath.dsv'
+[4.639s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/hook/pythonpath.sh'
+[4.642s] Level 1:colcon.colcon_core.environment:checking '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/bin'
+[4.642s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(ryugu_control)
+[4.643s] INFO:colcon.colcon_core.shell:Creating package script '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/package.ps1'
+[4.648s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/package.dsv'
+[4.650s] INFO:colcon.colcon_core.shell:Creating package script '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/package.sh'
+[4.653s] INFO:colcon.colcon_core.shell:Creating package script '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/package.bash'
+[4.655s] INFO:colcon.colcon_core.shell:Creating package script '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/package.zsh'
+[4.658s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/colcon-core/packages/ryugu_control)
+[4.660s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[4.661s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[4.661s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[4.661s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[4.662s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[4.663s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/icad/RYUGU-ROV-CompanionComputer/install/local_setup.ps1'
+[4.668s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/icad/RYUGU-ROV-CompanionComputer/install/_local_setup_util_ps1.py'
+[4.674s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/icad/RYUGU-ROV-CompanionComputer/install/setup.ps1'
+[4.678s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/icad/RYUGU-ROV-CompanionComputer/install/local_setup.sh'
+[4.680s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/icad/RYUGU-ROV-CompanionComputer/install/_local_setup_util_sh.py'
+[4.682s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/icad/RYUGU-ROV-CompanionComputer/install/setup.sh'
+[4.685s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/icad/RYUGU-ROV-CompanionComputer/install/local_setup.bash'
+[4.687s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/icad/RYUGU-ROV-CompanionComputer/install/setup.bash'
+[4.690s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/icad/RYUGU-ROV-CompanionComputer/install/local_setup.zsh'
+[4.691s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/icad/RYUGU-ROV-CompanionComputer/install/setup.zsh'

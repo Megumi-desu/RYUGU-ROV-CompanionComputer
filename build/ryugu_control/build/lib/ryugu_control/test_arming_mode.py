@@ -3,7 +3,7 @@
 test_arming_mode.py — Interactive Arming & Flight-Mode Test Node for RYUGU ROV
 
 Provides a terminal menu to safely command the Pixhawk 2.4.8 running
-ArduSub v4.5.7 via MAVROS ROS2 services.
+ArduSub v4.7 via MAVROS ROS2 services.
 
 Menu:
   [1] ARM        [2] DISARM

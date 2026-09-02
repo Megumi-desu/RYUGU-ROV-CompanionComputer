@@ -12,9 +12,11 @@ config/ardusub_params.yaml
 launch/mavros_sub.launch.py
 launch/ryugu_GoProduction_QGC.launch.py
 launch/ryugu_production.launch.py
+models/yolo_nas_rov_hook_fp16.engine
 resource/ryugu_control
 ryugu_control/__init__.py
 ryugu_control/gcs_bridge_node.py
+ryugu_control/hook_detection_node.py
 ryugu_control/test_arming_mode.py
 ryugu_control/test_sensor_reader.py
 ryugu_control/test_thrusters_gripper.py

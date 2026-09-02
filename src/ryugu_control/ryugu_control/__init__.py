@@ -6,7 +6,7 @@ ryugu_control — ROS2 control package for the RYUGU underwater ROV.
 
 This package provides nodes and launch configurations for controlling
 the RYUGU ROV via MAVROS, communicating with a Pixhawk 2.4.8 running
-ArduSub v4.5.7.
+ArduSub v4.7.
 
 Hardware:
   - 6 Thrusters (DSHOT ESCs) on Pixhawk AUX 1–6

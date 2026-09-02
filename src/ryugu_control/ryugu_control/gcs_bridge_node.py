@@ -88,7 +88,7 @@ from rclpy.executors import MultiThreadedExecutor
 from mavros_msgs.msg import RCOut, State, Altitude
 from mavros_msgs.srv import CommandBool
 from sensor_msgs.msg import BatteryState, Imu
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool, String, Float32MultiArray
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  CRC-16/CCITT-FALSE  (poly=0x1021, init=0xFFFF, no reflection)
@@ -343,6 +343,16 @@ class GCSBridgeNode(Node):
         self._last_qr_sent_data: str = ''
         self._last_qr_send_time: float = 0.0
 
+        # Hook vision state (from hook_detection_node /ryugu/vision/hook_target)
+        self._hook_detected: bool = False
+        self._hook_camera_id: int = 0
+        self._hook_cx: float = 0.0
+        self._hook_cy: float = 0.0
+        self._hook_bw: float = 0.0
+        self._hook_bh: float = 0.0
+        self._hook_conf: float = 0.0
+        self._last_hook_log_time: float = 0.0
+
         # ── Callback group (reentrant for multi-threaded executor) ─────
         self._cb_group = ReentrantCallbackGroup()
 
@@ -418,6 +428,11 @@ class GCSBridgeNode(Node):
             String, '/ryugu/qr/bottom',
             lambda msg: self._handle_qr_callback(msg.data, 1),
             10, callback_group=self._cb_group)
+
+        # Hook target vision data from hook_detection_node (centroid + bbox)
+        self._hook_target_sub = self.create_subscription(
+            Float32MultiArray, '/ryugu/vision/hook_target',
+            self._hook_target_callback, 10, callback_group=self._cb_group)
 
         # ═══════════════════════════════════════════════════════════════════
         #  PUBLISHERS — EMERGENCY STOP
@@ -695,6 +710,56 @@ class GCSBridgeNode(Node):
                 f'"{qr_data}" ({str_len}B payload)')
 
     # ═══════════════════════════════════════════════════════════════════════
+    # ═══════════════════════════════════════════════════════════════════════════
+    #  Vision callback (hook target from hook_detection_node)
+    # ═══════════════════════════════════════════════════════════════════════════
+    def _hook_target_callback(self, msg: Float32MultiArray):
+        """
+        Store hook target vision state from hook_detection_node.
+
+        Payload layout (12 floats — see _publish_target in hook_detection_node):
+          [camera_id, cx, cy, bw, bh, confidence, class_id, detected_flag,
+           x1, y1, x2, y2]
+        Only the first 8 fields are consumed here; the trailing box corners
+        are used by webcam_streamer for the MJPEG overlay.
+
+        detected_flag is 1.0 when a hook_target is visible, 0.0 otherwise.
+
+        Logging: on a rising detection edge log immediately; while the
+        target stays detected re-log at 1 Hz; on a falling edge log a
+        "target lost" notice.
+        """
+        if len(msg.data) < 8:
+            return
+
+        now = time.monotonic()
+        with self._state_lock:
+            prev_detected = self._hook_detected
+            self._hook_camera_id = int(msg.data[0])
+            self._hook_cx = float(msg.data[1])
+            self._hook_cy = float(msg.data[2])
+            self._hook_bw = float(msg.data[3])
+            self._hook_bh = float(msg.data[4])
+            self._hook_conf = float(msg.data[5])
+            self._hook_detected = msg.data[7] >= 0.5
+
+        cam_id = self._hook_camera_id
+        cam_name = {0: 'front', 1: 'bottom'}.get(cam_id, str(cam_id))
+
+        if not self._hook_detected:
+            if prev_detected:
+                self.get_logger().info(
+                    f'🎯 HOOK TARGET LOST [Cam: {cam_name}]')
+            return
+
+        if not prev_detected or (now - self._last_hook_log_time) >= 1.0:
+            self.get_logger().info(
+                f'🎯 HOOK TARGET DETECTED [Cam: {cam_name}]: '
+                f'cx={self._hook_cx:.1f}, cy={self._hook_cy:.1f}, '
+                f'conf={self._hook_conf:.2f}')
+            self._last_hook_log_time = now
+
+    # ═══════════════════════════════════════════════════════════════════════════
     #  Timer callbacks  (TELEMETRY BROADCAST — ACTIVE)
     # ═══════════════════════════════════════════════════════════════════════
 

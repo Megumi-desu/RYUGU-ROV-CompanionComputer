@@ -1,0 +1,94 @@
+[0.000000] (-) TimerEvent: {}
+[0.000543] (ryugu_control) JobQueued: {'identifier': 'ryugu_control', 'dependencies': OrderedDict()}
+[0.000877] (ryugu_control) JobStarted: {'identifier': 'ryugu_control'}
+[0.099097] (-) TimerEvent: {}
+[0.199444] (-) TimerEvent: {}
+[0.299796] (-) TimerEvent: {}
+[0.400142] (-) TimerEvent: {}
+[0.500481] (-) TimerEvent: {}
+[0.600840] (-) TimerEvent: {}
+[0.701208] (-) TimerEvent: {}
+[0.801535] (-) TimerEvent: {}
+[0.901882] (-) TimerEvent: {}
+[1.002210] (-) TimerEvent: {}
+[1.102552] (-) TimerEvent: {}
+[1.202895] (-) TimerEvent: {}
+[1.303234] (-) TimerEvent: {}
+[1.403589] (-) TimerEvent: {}
+[1.471664] (ryugu_control) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'develop', '--uninstall', '--editable', '--build-directory', '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build'], 'cwd': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control', 'env': {'USER': 'icad', 'SSH_CLIENT': '192.168.1.100 54156 22', 'XDG_SESSION_TYPE': 'tty', 'SHLVL': '0', 'LD_LIBRARY_PATH': '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib', 'MOTD_SHOWN': 'pam', 'HOME': '/home/icad', 'OLDPWD': '/home/icad', 'ROS_PYTHON_VERSION': '3', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'COLCON_PREFIX_PATH': '/home/icad/RYUGU-ROV-CompanionComputer/install', 'ROS_DISTRO': 'humble', 'LOGNAME': 'icad', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'XDG_SESSION_ID': '27', 'ROS_LOCALHOST_ONLY': '0', 'PATH': '/opt/ros/humble/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'XDG_RUNTIME_DIR': '/run/user/1000', 'LANG': 'en_US.UTF-8', 'AMENT_PREFIX_PATH': '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control:/opt/ros/humble', 'SHELL': '/bin/bash', 'PWD': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control', 'LC_ALL': 'en_US.UTF-8', 'SSH_CONNECTION': '192.168.1.100 54156 192.168.1.10 22', 'PYTHONPATH': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1'}, 'shell': False}
+[1.503724] (-) TimerEvent: {}
+[1.604068] (-) TimerEvent: {}
+[1.704399] (-) TimerEvent: {}
+[1.804737] (-) TimerEvent: {}
+[1.905080] (-) TimerEvent: {}
+[2.005424] (-) TimerEvent: {}
+[2.081226] (ryugu_control) StdoutLine: {'line': b'running develop\n'}
+[2.105551] (-) TimerEvent: {}
+[2.205875] (-) TimerEvent: {}
+[2.306216] (-) TimerEvent: {}
+[2.406549] (-) TimerEvent: {}
+[2.474743] (ryugu_control) StdoutLine: {'line': b'Removing /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu-control.egg-link (link to .)\n'}
+[2.506713] (-) TimerEvent: {}
+[2.557560] (ryugu_control) CommandEnded: {'returncode': 0}
+[2.561044] (ryugu_control) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'egg_info', '--egg-base', '../../build/ryugu_control', 'build', '--build-base', '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build', 'install', '--record', '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/install.log', '--install-scripts', '$base/lib/ryugu_control', '--single-version-externally-managed', 'install_data', '--force'], 'cwd': '/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control', 'env': {'USER': 'icad', 'SSH_CLIENT': '192.168.1.100 54156 22', 'XDG_SESSION_TYPE': 'tty', 'SHLVL': '0', 'LD_LIBRARY_PATH': '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib', 'MOTD_SHOWN': 'pam', 'HOME': '/home/icad', 'OLDPWD': '/home/icad', 'ROS_PYTHON_VERSION': '3', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'COLCON_PREFIX_PATH': '/home/icad/RYUGU-ROV-CompanionComputer/install', 'ROS_DISTRO': 'humble', 'LOGNAME': 'icad', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'XDG_SESSION_ID': '27', 'ROS_LOCALHOST_ONLY': '0', 'PATH': '/opt/ros/humble/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'XDG_RUNTIME_DIR': '/run/user/1000', 'LANG': 'en_US.UTF-8', 'AMENT_PREFIX_PATH': '/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control:/opt/ros/humble', 'SHELL': '/bin/bash', 'PWD': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control', 'LC_ALL': 'en_US.UTF-8', 'SSH_CONNECTION': '192.168.1.100 54156 192.168.1.10 22', 'PYTHONPATH': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1'}, 'shell': False}
+[2.606856] (-) TimerEvent: {}
+[2.707208] (-) TimerEvent: {}
+[2.807548] (-) TimerEvent: {}
+[2.907886] (-) TimerEvent: {}
+[3.008231] (-) TimerEvent: {}
+[3.108583] (-) TimerEvent: {}
+[3.157402] (ryugu_control) StdoutLine: {'line': b'running egg_info\n'}
+[3.158935] (ryugu_control) StdoutLine: {'line': b'writing ../../build/ryugu_control/ryugu_control.egg-info/PKG-INFO\n'}
+[3.159658] (ryugu_control) StdoutLine: {'line': b'writing dependency_links to ../../build/ryugu_control/ryugu_control.egg-info/dependency_links.txt\n'}
+[3.160155] (ryugu_control) StdoutLine: {'line': b'writing entry points to ../../build/ryugu_control/ryugu_control.egg-info/entry_points.txt\n'}
+[3.160471] (ryugu_control) StdoutLine: {'line': b'writing requirements to ../../build/ryugu_control/ryugu_control.egg-info/requires.txt\n'}
+[3.160738] (ryugu_control) StdoutLine: {'line': b'writing top-level names to ../../build/ryugu_control/ryugu_control.egg-info/top_level.txt\n'}
+[3.165307] (ryugu_control) StdoutLine: {'line': b"reading manifest file '../../build/ryugu_control/ryugu_control.egg-info/SOURCES.txt'\n"}
+[3.167910] (ryugu_control) StdoutLine: {'line': b"writing manifest file '../../build/ryugu_control/ryugu_control.egg-info/SOURCES.txt'\n"}
+[3.168663] (ryugu_control) StdoutLine: {'line': b'running build\n'}
+[3.169133] (ryugu_control) StdoutLine: {'line': b'running build_py\n'}
+[3.169678] (ryugu_control) StdoutLine: {'line': b'creating /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build\n'}
+[3.169873] (ryugu_control) StdoutLine: {'line': b'creating /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib\n'}
+[3.170313] (ryugu_control) StdoutLine: {'line': b'creating /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control\n'}
+[3.170492] (ryugu_control) StdoutLine: {'line': b'copying ryugu_control/gcs_bridge_node.py -> /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control\n'}
+[3.170869] (ryugu_control) StdoutLine: {'line': b'copying ryugu_control/__init__.py -> /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control\n'}
+[3.171094] (ryugu_control) StdoutLine: {'line': b'copying ryugu_control/test_thrusters_gripper.py -> /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control\n'}
+[3.171524] (ryugu_control) StdoutLine: {'line': b'copying ryugu_control/test_arming_mode.py -> /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control\n'}
+[3.171680] (ryugu_control) StdoutLine: {'line': b'copying ryugu_control/test_sensor_reader.py -> /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control\n'}
+[3.171952] (ryugu_control) StdoutLine: {'line': b'copying ryugu_control/webcam_streamer.py -> /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control\n'}
+[3.172586] (ryugu_control) StdoutLine: {'line': b'running install\n'}
+[3.173317] (ryugu_control) StdoutLine: {'line': b'running install_lib\n'}
+[3.177760] (ryugu_control) StdoutLine: {'line': b'creating /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control\n'}
+[3.178144] (ryugu_control) StdoutLine: {'line': b'copying /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control/gcs_bridge_node.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control\n'}
+[3.178413] (ryugu_control) StdoutLine: {'line': b'copying /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control/__init__.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control\n'}
+[3.178665] (ryugu_control) StdoutLine: {'line': b'copying /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control/test_thrusters_gripper.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control\n'}
+[3.178960] (ryugu_control) StdoutLine: {'line': b'copying /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control/test_arming_mode.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control\n'}
+[3.179198] (ryugu_control) StdoutLine: {'line': b'copying /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control/test_sensor_reader.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control\n'}
+[3.179442] (ryugu_control) StdoutLine: {'line': b'copying /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build/lib/ryugu_control/webcam_streamer.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control\n'}
+[3.180816] (ryugu_control) StdoutLine: {'line': b'byte-compiling /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/gcs_bridge_node.py to gcs_bridge_node.cpython-310.pyc\n'}
+[3.192842] (ryugu_control) StdoutLine: {'line': b'byte-compiling /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/__init__.py to __init__.cpython-310.pyc\n'}
+[3.193456] (ryugu_control) StdoutLine: {'line': b'byte-compiling /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/test_thrusters_gripper.py to test_thrusters_gripper.cpython-310.pyc\n'}
+[3.198761] (ryugu_control) StdoutLine: {'line': b'byte-compiling /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/test_arming_mode.py to test_arming_mode.cpython-310.pyc\n'}
+[3.202297] (ryugu_control) StdoutLine: {'line': b'byte-compiling /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/test_sensor_reader.py to test_sensor_reader.cpython-310.pyc\n'}
+[3.207226] (ryugu_control) StdoutLine: {'line': b'byte-compiling /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control/webcam_streamer.py to webcam_streamer.cpython-310.pyc\n'}
+[3.208642] (-) TimerEvent: {}
+[3.212466] (ryugu_control) StdoutLine: {'line': b'running install_data\n'}
+[3.212793] (ryugu_control) StdoutLine: {'line': b'copying resource/ryugu_control -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ament_index/resource_index/packages\n'}
+[3.213175] (ryugu_control) StdoutLine: {'line': b'copying package.xml -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control\n'}
+[3.213496] (ryugu_control) StdoutLine: {'line': b'copying launch/mavros_sub.launch.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/launch\n'}
+[3.214051] (ryugu_control) StdoutLine: {'line': b'copying launch/ryugu_production.launch.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/launch\n'}
+[3.214501] (ryugu_control) StdoutLine: {'line': b'copying launch/ryugu_GoProduction_QGC.launch.py -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/launch\n'}
+[3.214935] (ryugu_control) StdoutLine: {'line': b'copying config/ardusub_params.yaml -> /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/share/ryugu_control/config\n'}
+[3.215304] (ryugu_control) StdoutLine: {'line': b'running install_egg_info\n'}
+[3.220082] (ryugu_control) StdoutLine: {'line': b'Copying ../../build/ryugu_control/ryugu_control.egg-info to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu_control-0.1.0-py3.10.egg-info\n'}
+[3.222393] (ryugu_control) StdoutLine: {'line': b'running install_scripts\n'}
+[3.267649] (ryugu_control) StdoutLine: {'line': b'Installing gcs_bridge_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[3.268280] (ryugu_control) StdoutLine: {'line': b'Installing test_arming_mode script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[3.268759] (ryugu_control) StdoutLine: {'line': b'Installing test_sensor_reader script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[3.269067] (ryugu_control) StdoutLine: {'line': b'Installing test_thrusters_gripper script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[3.269285] (ryugu_control) StdoutLine: {'line': b'Installing webcam_streamer script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[3.269928] (ryugu_control) StdoutLine: {'line': b"writing list of installed files to '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/install.log'\n"}
+[3.308839] (-) TimerEvent: {}
+[3.342712] (ryugu_control) CommandEnded: {'returncode': 0}
+[3.381369] (ryugu_control) JobEnded: {'identifier': 'ryugu_control', 'rc': 0}
+[3.383293] (-) EventReactorShutdown: {}

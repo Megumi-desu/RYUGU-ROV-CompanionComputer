@@ -26,6 +26,14 @@ readonly BOTTOM_CAM="/dev/v4l/by-id/usb-JETE-W7_JETE-W7_202503051344-video-index
 # ── Log helper ──────────────────────────────────────────────────────────────
 log() { echo "[ryugu-rov] $(date '+%Y-%m-%dT%H:%M:%S%z') — $*" >&2; }
 
+# ── CUDA environment (TensorRT / hook_detection_node) ───────────────────────
+# systemd starts with a minimal environment — no CUDA paths.  Export them
+# BEFORE sourcing ROS 2 so every child process (MAVROS, webcam_streamer,
+# hook_detection_node) inherits the runtime libraries.
+export CUDA_HOME="/usr/local/cuda"
+export PATH="${CUDA_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:/usr/local/cuda-12.6/lib64:${LD_LIBRARY_PATH:-}"
+
 # ── Source ROS 2 Humble ─────────────────────────────────────────────────────
 if [ -f "${ROS_SETUP}" ]; then
     # shellcheck source=/dev/null

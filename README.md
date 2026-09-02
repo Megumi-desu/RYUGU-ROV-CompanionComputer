@@ -1,6 +1,6 @@
 # RYUGU ROV (Remotely Operated Vehicle) Control System
 
-A ROS 2 Humble workspace for the RYUGU ROV (Remotely Operated Vehicle) control system, designed to control the underwater vehicle via MAVROS and ArduSub v4.5.7. This project is prepared for the **Kontes Kapal Indonesia (KKI) 2026** competition.
+A ROS 2 Humble workspace for the RYUGU ROV (Remotely Operated Vehicle) control system, designed to control the underwater vehicle via MAVROS and ArduSub v4.7. This project is prepared for the **Kontes Kapal Indonesia (KKI) 2026** competition.
 
 ---
 
@@ -8,8 +8,8 @@ A ROS 2 Humble workspace for the RYUGU ROV (Remotely Operated Vehicle) control s
 > [!NOTE]
 > This workspace is under active development.
 > 
-> * **Completed/Ready:** Core communication bridge (GCS ↔ Jetson ↔ Pixhawk), dual webcam HTTP MJPEG streamer, telemetry reader, arming control, and manual thruster/gripper control.
-> * **In-Progress/Unfinished:** QR Code scanning program and the autonomous mission program.
+> * **Completed/Ready:** Core communication bridge (GCS ↔ Jetson ↔ Pixhawk), dual webcam HTTP MJPEG streamer, TensorRT FP16 YOLO-NAS autonomous hook detection node, telemetry reader, arming control, and manual thruster/gripper control.
+> * **In-Progress/Unfinished:** QR Code scanning program and full autonomous state machine.
 
 ---
 
@@ -23,19 +23,24 @@ RYUGU-ROV/
 │       ├── main.conf                       # mavlink-router config (→ /etc/mavlink-router/)
 │       └── mavlink-router.service          # systemd unit (→ /etc/systemd/system/)
 ├── scripts/
+│   ├── reexport_yolo_nas.py                # YOLO-NAS ONNX export & test verification tool
+│   ├── test_tensorrt_inference.py          # Standalone pure Python TensorRT inference diagnostic
 │   └── verify_mavlink_router.sh            # End-to-end telemetry chain verification
 ├── src/
 │   └── ryugu_control/                      # Main ROS 2 package (Python)
 │       ├── config/
-│       │   └── ardusub_params.yaml          # MAVROS/ArduSub configuration parameters
+│       │   └── ardusub_params.yaml         # MAVROS/ArduSub configuration parameters
 │       ├── launch/
 │       │   ├── mavros_sub.launch.py        # Launch file for MAVROS (standalone)
 │       │   ├── ryugu_production.launch.py  # Production launch (direct serial mode)
-│       │   └── ryugu_GoProduction_QGC.launch.py  # Production launch with QGC (UDP mode)
+│       │   └── ryugu_GoProduction_QGC.launch.py  # Production launch with QGC & YOLO-NAS
+│       ├── models/
+│       │   └── yolo_nas_rov_hook_fp16.engine # Compiled TensorRT FP16 model engine (121+ FPS)
 │       ├── ryugu_control/                  # Node source codes
 │       │   ├── __init__.py
 │       │   ├── gcs_bridge_node.py          # GCS ↔ Jetson ↔ Pixhawk UDP communication bridge node
-│       │   ├── webcam_streamer.py          # Dual USB webcam HTTP MJPEG streaming node
+│       │   ├── webcam_streamer.py          # Dual USB webcam HTTP MJPEG streamer + AI overlay
+│       │   ├── hook_detection_node.py      # TensorRT FP16 YOLO-NAS hook object detection node
 │       │   ├── test_arming_mode.py         # Node for arming & flight mode testing
 │       │   ├── test_sensor_reader.py       # Node for telemetry sensor reading tests
 │       │   └── test_thrusters_gripper.py   # Node for thruster & gripper servo movement tests
@@ -97,7 +102,7 @@ The communication link relies on a custom UDP protocol validated using **CRC-16/
                                       │
                          ┌────────────▼──────────────┐
                          │ Pixhawk 2.4.8             │
-                         │ (ArduSub v4.5.7)          │
+                         │ (ArduSub v4.7)            │
                          └───────────────────────────┘
 ```
 
@@ -171,6 +176,73 @@ ros2 launch ryugu_control ryugu_production.launch.py
 
 ---
 
+## 🤖 Autonomous Vision & Object Detection (YOLO-NAS TensorRT)
+
+The vision system utilizes a **YOLO-NAS Small** model exported to ONNX and compiled into a high-performance **TensorRT FP16 engine**, achieving **121+ FPS** with an average latency of **8.5 ms** on the Jetson Orin Nano GPU.
+
+```text
+USB Webcams (Front & Bottom)
+        │  V4L2 (640x360 @ 30 FPS)
+        ▼
+  webcam_streamer (ROS 2 Node)
+        │
+        ├──► HTTP MJPEG Stream (:8554 & :8555) ──► GCS Dashboard (With AI Overlay)
+        │
+        └──► /ryugu/camera/{front,bottom}/image_raw (sensor_msgs/Image)
+                    │
+                    ▼
+          hook_detection_node (ROS 2 Node)
+          ├── Model: yolo_nas_rov_hook_fp16.engine (TensorRT FP16)
+          ├── Preprocess: ImageNet Mean/Std Normalization
+          └── Classes: 0: hook_body_grey, 1: hook_body_white, 2: hook_target
+                    │
+                    ├──► /ryugu/vision/hook_target (std_msgs/Float32MultiArray)
+                    ├──► /ryugu/vision/hook_detections (vision_msgs/Detection2DArray)
+                    └──► /ryugu/vision/hook_debug_image/compressed
+```
+
+### 1. Classes Detected
+* `hook_body_grey` (`id: 0`): Silver/grey metallic hook chassis
+* `hook_body_white` (`id: 1`): White PVC hook section
+* `hook_target` (`id: 2`): Main target orange/gold hook tip & centroid
+
+### 2. Dual Camera Inference (`hook_active_camera`)
+The vision node supports running inference on the front camera, bottom camera, or **both cameras simultaneously**:
+
+| Value | Behavior |
+| :--- | :--- |
+| `front` *(default)* | Subscribes to `/ryugu/camera/front/image_raw` |
+| `bottom` | Subscribes to `/ryugu/camera/bottom/image_raw` |
+| `both` | **Subscribes and runs TensorRT inference on BOTH Front and Bottom cameras in parallel** |
+
+### 3. Launching for Dual Camera Inference
+To launch the full system with YOLO-NAS detection active on **both cameras**:
+```bash
+source install/setup.bash
+ros2 launch ryugu_control ryugu_GoProduction_QGC.launch.py \
+    enable_hook_detection:=true \
+    hook_active_camera:=both \
+    hook_conf_threshold:=0.40
+```
+
+### 4. Dynamic Parameter Tuning
+The confidence threshold can be tuned live while the ROV is operating, without restarting the node:
+```bash
+# Tune threshold dynamically at runtime:
+ros2 param set /hook_detection_node conf_threshold 0.40
+```
+
+### 5. Model Conversion & Verification
+To compile a newly trained ONNX model into TensorRT FP16 format for maximum GPU speed:
+```bash
+/usr/src/tensorrt/bin/trtexec \
+    --onnx="/path/to/rov_yolo_nas.onnx" \
+    --saveEngine="/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control/models/yolo_nas_rov_hook_fp16.engine" \
+    --fp16 --memPoolSize=workspace:4096
+```
+
+---
+
 ## 🔀 MAVLink Routing & QGroundControl Calibration
 
 The `mavlink-router` daemon splits the Pixhawk MAVLink telemetry stream in parallel to **MAVROS** (for the ROS2 control stack) and **QGroundControl** (for real-time sensor calibration on the GCS laptop).
@@ -229,7 +301,7 @@ The original `ryugu_production.launch.py` is preserved for direct-serial-only op
 1. Open **QGroundControl** (daily build recommended for ArduSub).
 2. Go to **Application Settings → Comm Links**.
 3. Add a UDP link: port `14550`, server mode (QGC listens).
-4. Once connected, the QGC top bar shows "ArduSub v4.5.7" with vehicle status.
+4. Once connected, the QGC top bar shows "ArduSub v4.7" with vehicle status.
 5. Navigate to **Sensors → Calibrate Sensors** to calibrate IMU, compass, and level horizon.
 
 ### 5. Verify Everything Is Working

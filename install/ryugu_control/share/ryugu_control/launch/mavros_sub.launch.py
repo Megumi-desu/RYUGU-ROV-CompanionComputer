@@ -1,1 +1,1 @@
-/home/icad/RYUGU-ROV/build/ryugu_control/launch/mavros_sub.launch.py
+/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/launch/mavros_sub.launch.py

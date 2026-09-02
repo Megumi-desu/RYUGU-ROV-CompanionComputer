@@ -3,7 +3,7 @@
 <package format="3">
   <name>ryugu_control</name>
   <version>0.1.0</version>
-  <description>ROS2 control package for RYUGU ROV — underwater vehicle control via MAVROS and ArduSub v4.5.7</description>
+  <description>ROS2 control package for RYUGU ROV — underwater vehicle control via MAVROS and ArduSub v4.7</description>
   <maintainer email="rachmatgifari99@gmail.com">rahmat</maintainer>
   <license>MIT</license>
 
@@ -19,6 +19,7 @@
   <exec_depend>mavros</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>vision_msgs</exec_depend>
 
   <!-- Test dependencies -->
   <test_depend>ament_copyright</test_depend>

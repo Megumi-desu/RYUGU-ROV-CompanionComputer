@@ -1,0 +1,10 @@
+[2.617s] Invoking command in '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build
+[3.133s] /home/icad/.local/lib/python3.10/site-packages/setuptools/_distutils/dist.py:318: UserWarning: Unknown distribution option: 'tests_require'
+[3.133s]   warnings.warn(msg)
+[3.300s] usage: setup.py [global_opts] cmd1 [cmd1_opts] [cmd2 [cmd2_opts] ...]
+[3.301s]    or: setup.py --help [cmd1 cmd2 ...]
+[3.301s]    or: setup.py --help-commands
+[3.301s]    or: setup.py cmd --help
+[3.301s] 
+[3.301s] error: option --uninstall not recognized
+[3.386s] Invoked command in '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control' returned '1': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --uninstall --editable --build-directory /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build

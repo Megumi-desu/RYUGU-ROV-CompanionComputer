@@ -1,5 +1,5 @@
 """
-MAVROS Launch File for RYUGU ROV — ArduSub v4.5.7
+MAVROS Launch File for RYUGU ROV — ArduSub v4.7
 
 Launches the MAVROS node configured for a Pixhawk 2.4.8 connected via
 USB serial (/dev/ttyACM0) at 115200 baud.
@@ -151,7 +151,7 @@ def generate_launch_description():
     banner = LogInfo(msg=[
         '\n',
         '╔══════════════════════════════════════════════════════════════╗\n',
-        '║           RYUGU ROV — MAVROS ArduSub v4.5.7                   \n',
+        '║           RYUGU ROV — MAVROS ArduSub v4.7                     \n',
         '║  FCU URL : ', LaunchConfiguration('fcu_url'), '\n',
         '║  SYS  ID : ', LaunchConfiguration('system_id'), '\n',
         '║  COMP ID : ', LaunchConfiguration('component_id'), '\n',

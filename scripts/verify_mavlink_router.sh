@@ -111,7 +111,7 @@ echo "      1. Open QGroundControl"
 echo "      2. Click the QGC icon → Application Settings → Comm Links"
 echo "      3. Verify a UDP link on port 14550 shows a green heartbeat"
 echo "      4. Check the 'Vehicle' icon in the top bar — should show"
-echo "         'ArduSub v4.5.7' with battery, mode, and GPS status"
+echo "         'ArduSub v4.7' with battery, mode, and GPS status"
 echo "      5. Go to Sensors → Calibrate Sensors to begin IMU/compass cal"
 
 # ── 7. Quick-fix helpers ───────────────────────────────────────────────────

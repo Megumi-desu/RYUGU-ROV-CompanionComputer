@@ -167,6 +167,26 @@ def generate_launch_description():
         description='Camera capture/stream target FPS.',
     )
 
+    # ── Hook detection arguments ─────────────────────────────────────────
+    enable_hook_detection_arg = DeclareLaunchArgument(
+        'enable_hook_detection', default_value='true',
+        description='Enable the TensorRT hook detection node.',
+    )
+    hook_conf_arg = DeclareLaunchArgument(
+        'hook_conf_threshold', default_value='0.50',
+        description='Hook detection confidence threshold (dynamically '
+                    'tunable: ros2 param set /hook_detection_node '
+                    'conf_threshold 0.40).',
+    )
+    hook_iou_arg = DeclareLaunchArgument(
+        'hook_iou_threshold', default_value='0.50',
+        description='Hook detection NMS IoU threshold.',
+    )
+    hook_camera_arg = DeclareLaunchArgument(
+        'hook_active_camera', default_value='both',
+        description='Which camera to process (front, bottom, both).',
+    )
+
     # ═══════════════════════════════════════════════════════════════════════
     #  MAVROS Node
     # ═══════════════════════════════════════════════════════════════════════
@@ -277,6 +297,29 @@ def generate_launch_description():
             'height':       LaunchConfiguration('cam_height'),
             'fps':          LaunchConfiguration('cam_fps'),
             'jpeg_quality':   70,
+            'publish_raw_images': True,
+        }],
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    #  Hook Detection Node  (conditionally launched)
+    # ═══════════════════════════════════════════════════════════════════════
+    hook_detection_node = Node(
+        package='ryugu_control',
+        executable='hook_detection_node',
+        name='hook_detection_node',
+        output='screen',
+        respawn=True,
+        respawn_delay=5.0,
+        condition=IfCondition(LaunchConfiguration('enable_hook_detection')),
+        parameters=[{
+            'conf_threshold':    LaunchConfiguration('hook_conf_threshold'),
+            'iou_threshold':     LaunchConfiguration('hook_iou_threshold'),
+            'active_camera':     LaunchConfiguration('hook_active_camera'),
+            'class_names':       ['hook_body_grey', 'hook_body_white',
+                                  'hook_target'],
+            'target_class':      'hook_target',
+            'debug_jpeg_quality': 70,
         }],
     )
 
@@ -294,7 +337,9 @@ def generate_launch_description():
                        ':', LaunchConfiguration('cmd_port'),
                        '  →  GCS ', LaunchConfiguration('gcs_ip'),
                        ':', LaunchConfiguration('telem_port'), '\n',
-        '║  Cameras: ', LaunchConfiguration('enable_webcam'), '\n',
+        '║  Cameras:        ', LaunchConfiguration('enable_webcam'), '\n',
+        '║  Hook Detection: ', LaunchConfiguration('enable_hook_detection'),
+                       ' (cam: ', LaunchConfiguration('hook_active_camera'), ')\n',
         '║                                                                  ║\n',
         '║  Stream URLs (when cameras enabled):                             ║\n',
         '║    Front:  http://', LaunchConfiguration('jetson_ip'),
@@ -332,10 +377,16 @@ def generate_launch_description():
         cam_width_arg,
         cam_height_arg,
         cam_fps_arg,
+        # ── Hook detection args ──
+        enable_hook_detection_arg,
+        hook_conf_arg,
+        hook_iou_arg,
+        hook_camera_arg,
         # ── Banner ──
         banner,
         # ── Nodes ──
         mavros_node,
         gcs_bridge_node,
         webcam_node,
+        hook_detection_node,
     ])
