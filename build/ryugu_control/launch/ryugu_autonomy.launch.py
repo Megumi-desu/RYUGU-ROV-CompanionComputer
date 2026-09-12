@@ -1,0 +1,1 @@
+/home/icad/RYUGU-ROV-CompanionComputer/src/ryugu_control/launch/ryugu_autonomy.launch.py

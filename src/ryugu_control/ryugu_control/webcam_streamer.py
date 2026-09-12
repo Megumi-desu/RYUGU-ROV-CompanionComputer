@@ -10,8 +10,14 @@ frames and publishes decoded strings to /ryugu/qr/front and /ryugu/qr/bottom for
 telemetry via gcs_bridge_node.
 
 Streams:
-  Front Camera → http://192.168.1.10:8554/video  (/dev/video0)
-  Bottom Camera → http://192.168.1.10:8555/video  (/dev/video2)
+  Front Camera → http://192.168.1.10:8555/video  (JETE-W7  /dev/video0)
+  Bottom Camera → http://192.168.1.10:8554/video  (Xiongmai /dev/video2)
+
+Note: port assignment follows the GCS contract (constants.py: STREAM_URL_FRONT
+= :8555, STREAM_URL_BOTTOM = :8554).  front_port/bottom_port were swapped on
+2026-09-12 so the GCS's hardcoded :8555/front, :8554/bottom convention matches
+the served feeds — the earlier front=:8554 / bottom=:8555 layout displayed the
+two cameras cross-wired on the GCS panel.
 
 QR Detection:
   Publishers: /ryugu/qr/front, /ryugu/qr/bottom  (std_msgs/String)
@@ -146,8 +152,29 @@ class CameraCapture:
         # QR code detection (using pyzbar for better small/dense QR support)
         self._latest_qr_data: Optional[str] = None
         self._last_qr_scan_time = 0.0
-        self._qr_scan_interval = 0.2   # 5 Hz throttle
+        self._qr_scan_interval = 0.05  # 20 Hz hand-off (fast pre-screen)
         self._latest_qr_objects = []   # cached decoded objects for overlay drawing
+        # Sticky overlays: the box stays drawn for 2 s after the last
+        # successful decode so it doesn't flicker when decoding is
+        # intermittent (2026-09-12).
+        self._last_qr_found_at = 0.0
+        # Per-camera QR preprocessing.  Both cameras get CLAHE contrast
+        # normalisation (pool-scale exposure changes frame-to-frame); the
+        # front camera then gets a sharpen + 2× upscale chain, the bottom
+        # camera an adaptive threshold (see _decode_qr_pipeline).
+        self._clahe = cv2.createCLAHE(
+            clipLimit=2.0, tileGridSize=(8, 8))
+        # OpenCV QRCodeDetector fallback for the front camera — tolerates
+        # the blur / low contrast that occasionally defeats pyzbar.
+        self._qr_detector = cv2.QRCodeDetector()
+        # QR decoding runs on a DEDICATED worker thread, not the capture
+        # thread: the CLAHE/upscale/adaptive-threshold decode chain can cost
+        # 100s of ms per attempt, which would otherwise throttle the
+        # capture loop's FPS (see 2026-09-12 regression).
+        self._qr_wake = threading.Event()
+        self._qr_lock = threading.Lock()
+        self._qr_input: Optional[np.ndarray] = None   # latest grayscale frame
+        self._qr_thread: Optional[threading.Thread] = None
 
         # AI vision overlay state (fed by WebcamStreamerNode subscriptions
         # from hook_detection_node; drawn by the capture thread)
@@ -251,6 +278,229 @@ class CameraCapture:
                 target = None
             return (list(self._ai_detections), target, self._ai_fps)
 
+    @staticmethod
+    def _pyzbar_to_overlay(decoded, scale: float = 1.0) -> dict:
+        """
+        Convert a pyzbar Decoded object into the overlay-dict format used by
+        _draw_qr_overlays, scaling all coordinates by *scale*.
+
+        Args:
+            decoded: pyzbar Decoded object (or None).
+            scale: Multiply coordinates by this factor (e.g. 0.5 to map a
+                   detection made on a 2×-upscaled image back onto the
+                   display frame).
+
+        Returns:
+            {'data': str, 'rect': (x, y, w, h),
+             'polygon': [(x, y), (x, y), (x, y), (x, y)]}
+        """
+        rect = tuple(int(v * scale) for v in decoded.rect)
+        polygon = [(int(p.x * scale), int(p.y * scale))
+                   for p in decoded.polygon]
+        try:
+            data = decoded.data.decode('utf-8')
+        except UnicodeDecodeError:
+            data = decoded.data.hex()[:20]   # fallback for binary data
+        return {'data': data, 'rect': rect, 'polygon': polygon}
+
+    def _fast_detect(self, gray):
+        """
+        Cheap pre-screen: is there anything textured to decode at all?
+
+        A Laplacian edge-energy check on a half-res copy (~3 ms) returns
+        True whenever the frame carries any real detail, so QR frames are
+        NEVER rejected — this gate only short-circuits pathologically
+        smooth frames (lens covered, black underwater void).  The earlier
+        QRCodeDetector-based gate was dropped: it false-negatived exactly
+        the small/distant SIDE-B/C labels this stack must catch.
+        """
+        small = gray[::2, ::2]
+        return float(cv2.Laplacian(small, cv2.CV_64F).var()) >= 4.0
+
+    def _decode_qr_pipeline(self, gray, fast=True):
+        """
+        Run the per-camera QR decode pipeline on a grayscale frame.
+
+        When *fast* is set, a cheap edge-energy pre-screen (_fast_detect,
+        ~3 ms) rejects only pathologically smooth frames (camera covered /
+        black void); every textured frame, including ones carrying small
+        distant SIDE-B/C labels, is passed to the full chain.  A string of
+        QRCodeDetector-based gates was tried but each false-negatived the
+        small labels this stack must catch — edge energy cannot.
+
+        Both cameras get CLAHE contrast normalisation first (compensates for
+        the pool's poor, uneven indoor lighting).  Each camera then follows
+        its own enhancement chain matched to its lens mounting:
+
+          Front (JETE-W7 /dev/video0 — clear lens, low light):
+              CLAHE → sharpen → MULTI-SCALE pyzbar sweep.
+              pyzbar runs at 2× upscale (small/distant codes), native 1×,
+              and 0.5× downscale (large codes held close).  Falls back to
+              _crop_zoom_decode: QRCodeDetector locates the code region,
+              which is cropped, upscaled 4× and re-decoded.  All
+              coordinates are scaled back to display-frame space.
+
+          Bottom (Xiongmai /dev/video2 — sealed dome, glare/haze):
+              CLAHE → adaptive threshold → pyzbar → native pyzbar → same
+              _crop_zoom_decode fallback.  Adaptive thresholding binarises
+              the QR pattern so dome glare doesn't wash out the finder
+              cells.  No upscale — coordinates stay in display space.
+
+        Returns:
+            List of overlay dicts in display-frame coordinates (see
+            _draw_qr_overlays).  Empty list = nothing decoded this cycle.
+        """
+        if fast and not self._fast_detect(gray):
+            return []
+        frame_qr = self._clahe.apply(gray)
+
+        if 'front' in self.label.lower():
+            # ── Front: CLAHE → sharpen → multi-scale pyzbar ──────────────
+            sharpen_kernel = np.array(
+                [[-1, -1, -1],
+                 [-1,  9, -1],
+                 [-1, -1, -1]], dtype=np.float32)
+            sharp = cv2.filter2D(frame_qr, -1, sharpen_kernel)
+
+            # PyZBar sweep across three scales so BOTH small/distant codes
+            # and large/close-up codes decode: 2× (≈4× pixel area), native
+            # 1×, and 0.5× downscale.  A close QR held at ~20-40 cm fills so
+            # much of the frame that the 2× image pushes it off-frame and
+            # every attempt fails — the 1× and 0.5× passes cover that case
+            # (seen 2026-09-12: intermittent decodes because the close/hold
+            # distance put the code outside the single 2× window).
+            up2 = cv2.resize(sharp, None, fx=2.0, fy=2.0,
+                             interpolation=cv2.INTER_CUBIC)
+            down05 = cv2.resize(sharp, None, fx=0.5, fy=0.5,
+                                interpolation=cv2.INTER_AREA)
+
+            for img, back in ((up2, 0.5), (sharp, 1.0), (down05, 2.0)):
+                overlays = [
+                    self._pyzbar_to_overlay(obj, back)
+                    for obj in pyzbar_decode(img)]
+                if overlays:
+                    return overlays
+
+            # ── Front regional fallback: detect → crop → 4× zoom ────────
+            overlays = self._crop_zoom_decode(sharp)
+            return overlays
+
+        # ── Bottom: CLAHE → adaptive threshold → pyzbar ─────────────────
+        thr = cv2.adaptiveThreshold(
+            frame_qr, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY, 31, 2)
+        overlays = [
+            self._pyzbar_to_overlay(obj, 1.0)
+            for obj in pyzbar_decode(thr)]
+        if overlays:
+            return overlays
+        # Plain pyzbar on the CLAHE image (some codes decode better without
+        # aggressive binarisation), then the detect→crop→zoom fallback.
+        overlays = [
+            self._pyzbar_to_overlay(obj, 1.0)
+            for obj in pyzbar_decode(frame_qr)]
+        if overlays:
+            return overlays
+        return self._crop_zoom_decode(frame_qr)
+
+    def _crop_zoom_decode(self, enhanced):
+        """
+        Detect-then-crop-and-zoom fallback for small/distant QR codes.
+
+        cv2.QRCodeDetector can LOCATE a code (4 corner points) even when its
+        own decoder — and pyzbar — fail on the small code.  Crop that region
+        with a margin, upscale it 4×, then let pyzbar and QRCodeDetector
+        decode the zoomed crop.  This is the key pathway for distant zone
+        labels (e.g. SIDE-B / SIDE-C tags fixed to pool structures), which
+        occupy only a few tens of pixels in a 1280×720 frame.
+
+        Args:
+            enhanced: contrast-enhanced grayscale image to probe.
+
+        Returns:
+            List of overlay dicts in *original* (enhanced) coordinates.
+            Empty list if no code is located/decoded.
+        """
+        probes = [enhanced]
+        probes.append(cv2.resize(enhanced, None, fx=0.5, fy=0.5,
+                                 interpolation=cv2.INTER_AREA))
+        for probe in probes:
+            ok, pts = self._qr_detector.detect(probe)
+            if not ok or pts is None or len(pts) != 4:
+                continue
+            back = 1.0 if probe is enhanced else 2.0
+            xs = [p[0][0] for p in pts]
+            ys = [p[0][1] for p in pts]
+            x0, y0 = int(min(xs) * back), int(min(ys) * back)
+            x1, y1 = int(max(xs) * back), int(max(ys) * back)
+            margin = int(max(x1 - x0, y1 - y0) * 0.4) + 8
+            x0c, y0c = max(0, x0 - margin), max(0, y0 - margin)
+            x1c = min(enhanced.shape[1], x1 + margin)
+            y1c = min(enhanced.shape[0], y1 + margin)
+            crop = enhanced[y0c:y1c, x0c:x1c]
+            if crop.size == 0:
+                continue
+            zoom = cv2.resize(crop, None, fx=4.0, fy=4.0,
+                              interpolation=cv2.INTER_CUBIC)
+            for obj in pyzbar_decode(zoom):
+                overlay = self._pyzbar_to_overlay(obj, 1.0 / 4.0)
+                rx, ry, rw, rh = overlay['rect']
+                overlay['rect'] = (rx + x0c, ry + y0c, rw, rh)
+                overlay['polygon'] = [
+                    (px + x0c, py + y0c) for px, py in overlay['polygon']]
+                return [overlay]
+            data, pts2, _ = self._qr_detector.detectAndDecode(zoom)
+            if data and pts2 is not None and len(pts2) == 4:
+                polygon = [
+                    (int(p[0][0] * 0.25) + x0c, int(p[0][1] * 0.25) + y0c)
+                    for p in pts2]
+                xs2 = [p[0] for p in polygon]
+                ys2 = [p[1] for p in polygon]
+                return [{'data': data,
+                         'rect': (min(xs2), min(ys2),
+                                  max(xs2) - min(xs2), max(ys2) - min(ys2)),
+                         'polygon': polygon}]
+        return []
+
+    def _qr_worker_loop(self):
+        """
+        Dedicated QR decode worker — one per camera.
+
+        Waits for the capture loop to hand off a new grayscale frame (5 Hz),
+        then runs the expensive per-camera decode pipeline (_decode_qr_pipeline)
+        OFF the capture thread.  Only the newest pending input is processed,
+        so intermediate frames are skipped if decoding runs slower than the
+        hand-off cadence.
+
+        Results are cached under the main lock so the capture thread can draw
+        overlays (and ROS can publish) without racing this worker.
+
+        This split fixed the 2026-09-12 regression where the inline CLAHE/
+        upscale/adaptive-threshold chain throttled capture to ~1 fps.
+        """
+        while self._running:
+            self._qr_wake.wait(timeout=0.5)
+            self._qr_wake.clear()
+            with self._qr_lock:
+                gray = self._qr_input
+                self._qr_input = None
+            if gray is None:
+                continue
+
+            decoded_objects = self._decode_qr_pipeline(gray)
+
+            with self._lock:
+                if decoded_objects:
+                    self._latest_qr_objects = decoded_objects
+                    self._last_qr_found_at = time.monotonic()
+                    # Take the first detected QR code for ROS publish
+                    qr_data = decoded_objects[0]['data']
+                    if qr_data:
+                        self._latest_qr_data = qr_data
+                elif time.monotonic() - self._last_qr_found_at > 2.0:
+                    # No QR for 2 s → drop the sticky overlay
+                    self._latest_qr_objects = []
+
     def _draw_qr_overlays(self, frame, decoded_objects):
         """
         Draw bounding boxes and text labels for detected QR codes directly
@@ -259,26 +509,28 @@ class CameraCapture:
 
         Args:
             frame: OpenCV BGR image (modified in-place).
-            decoded_objects: List of pyzbar Decoded objects.
+            decoded_objects: List of overlay dicts:
+                {'data': str, 'rect': (x, y, w, h),
+                 'polygon': [(x0, y0), (x1, y1), ...]}
+                with coordinates already in *display* frame space (the
+                decode pipeline scales upscaled detections back down before
+                caching).
         """
         for obj in decoded_objects:
             # ── Draw polygon boundary (precise corner points) ────────
-            pts = obj.polygon
-            if pts is not None and len(pts) == 4:
-                pts_array = np.array([(p.x, p.y) for p in pts], dtype=np.int32)
+            polygon = obj.get('polygon')
+            if polygon and len(polygon) == 4:
+                pts_array = np.array(polygon, dtype=np.int32)
                 cv2.polylines(frame, [pts_array], isClosed=True,
                               color=(0, 255, 0), thickness=2)
 
             # ── Draw axis-aligned bounding rectangle ─────────────────
-            x, y, w, h = obj.rect
+            x, y, w, h = obj.get('rect', (0, 0, 0, 0))
             cv2.rectangle(frame, (x, y), (x + w, y + h),
                           color=(0, 255, 0), thickness=2)
 
             # ── Draw label text with dark background ─────────────────
-            try:
-                text = obj.data.decode('utf-8')
-            except UnicodeDecodeError:
-                text = obj.data.hex()[:20]   # fallback for binary data
+            text = obj.get('data', 'QR')
             if len(text) > 32:
                 text = text[:29] + '...'
 
@@ -377,17 +629,23 @@ class CameraCapture:
                     font, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
 
     def start(self):
-        """Start the background capture thread."""
+        """Start the background capture and QR worker threads."""
         self._running = True
         self._thread = threading.Thread(
             target=self._capture_loop, name=f'cam-{self.label}', daemon=True)
         self._thread.start()
+        self._qr_thread = threading.Thread(
+            target=self._qr_worker_loop, name=f'qrd-{self.label}', daemon=True)
+        self._qr_thread.start()
 
     def stop(self):
-        """Stop capture and release resources."""
+        """Stop capture, QR worker, and release resources."""
         self._running = False
         if self._thread is not None:
             self._thread.join(timeout=3.0)
+        self._qr_wake.set()   # unblock the QR worker so it can exit
+        if self._qr_thread is not None:
+            self._qr_thread.join(timeout=3.0)
         if self._cap is not None and self._cap.isOpened():
             self._cap.release()
 
@@ -417,6 +675,15 @@ class CameraCapture:
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             cap.set(cv2.CAP_PROP_FPS, self.fps)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)   # minimise latency
+
+            # ── Front (JETE-W7) image tuning ──────────────────────────
+            # V4L2 diagnostics show this fixed-focus lens ships with
+            # sharpness=5/31, which softens small distant QR labels.  Bump
+            # edge contrast on the front camera; the bottom (Xiongmai)
+            # captures through a sealed dome and stays at defaults.
+            if 'front' in self.label.lower():
+                cap.set(cv2.CAP_PROP_SHARPNESS, 25)
+                cap.set(cv2.CAP_PROP_SHARPNESS, 25)   # some drivers need a 2nd write
 
             self._cap = cap
             with self._lock:
@@ -456,10 +723,19 @@ class CameraCapture:
                 self._cap = None
                 continue
 
-            # ── Bottom camera is physically mounted upside-down ──────────
+            # Capture a single timestamp for this iteration.  Used for both
+            # the QR-scan throttle and the FPS window — keeping them on the
+            # same reference avoids double-calling time.monotonic() and
+            # ensures the measured FPS reflects the true inter-frame rate
+            # rather than frame-read + processing time.
+            loop_now = time.monotonic()
+
+            # ── Front camera is physically mounted upside-down ──────────
             # Rotate 180° so the stream, overlays, QR detection, and the
-            # ROS image_raw topic are all upright.
-            if 'bottom' in self.label.lower():
+            # ROS image_raw topic are all upright.  (The Xiongmai bottom
+            # dome feeds upright already — verified 2026-09-12: with the
+            # rotation on the wrong camera BOTH feeds rendered upside-down.)
+            if 'front' in self.label.lower():
                 frame = cv2.rotate(frame, cv2.ROTATE_180)
 
             # ── Snapshot the CLEAN frame for ROS image publish ──────────
@@ -468,24 +744,23 @@ class CameraCapture:
             # detector would otherwise re-detect its own boxes (feedback).
             raw_frame = frame.copy()
 
-            # ── QR code detection via pyzbar (throttled to 5 Hz) ────────
-            now = time.monotonic()
-            if now - self._last_qr_scan_time >= self._qr_scan_interval:
-                self._last_qr_scan_time = now
-                # Convert to grayscale for faster & more reliable decoding
+            # ── QR code detection (throttled to 5 Hz) ────────────────────
+            # Only the cheap grayscale conversion happens here; the heavy
+            # decode pipeline runs in the QR worker thread (_qr_worker_loop)
+            # so expensive CLAHE/upscale/adaptive-threshold work never
+            # throttles the capture loop's FPS.
+            if loop_now - self._last_qr_scan_time >= self._qr_scan_interval:
+                self._last_qr_scan_time = loop_now
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                decoded_objects = pyzbar_decode(gray)
-                self._latest_qr_objects = decoded_objects
-                if decoded_objects:
-                    # Take the first detected QR code for ROS publish
-                    qr_data = decoded_objects[0].data.decode('utf-8')
-                    if qr_data:
-                        with self._lock:
-                            self._latest_qr_data = qr_data
+                with self._qr_lock:
+                    self._qr_input = gray
+                self._qr_wake.set()
 
             # ── Draw QR bounding-box overlays on every frame ───────────
-            if self._latest_qr_objects:
-                self._draw_qr_overlays(frame, self._latest_qr_objects)
+            with self._lock:
+                qr_overlays = list(self._latest_qr_objects)
+            if qr_overlays:
+                self._draw_qr_overlays(frame, qr_overlays)
 
             # ── Draw AI hook-detection overlays (if fresh) ──────────────
             vision = self.get_ai_overlay()
@@ -505,15 +780,14 @@ class CameraCapture:
                 self._fps_counter += 1
 
             # ── FPS calculation (once per second) ───────────────────────
-            now = time.monotonic()
             if self._last_fps_time == 0.0:
-                self._last_fps_time = now
-            elif now - self._last_fps_time >= 1.0:
+                self._last_fps_time = loop_now
+            elif loop_now - self._last_fps_time >= 1.0:
+                elapsed = loop_now - self._last_fps_time
                 with self._lock:
-                    self._fps_actual = (
-                        self._fps_counter / (now - self._last_fps_time))
+                    self._fps_actual = self._fps_counter / elapsed
                     self._fps_counter = 0
-                self._last_fps_time = now
+                self._last_fps_time = loop_now
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -554,7 +828,16 @@ class MJPEGHandler(BaseHTTPRequestHandler):
             self.send_error(404, 'Not Found')
 
     def _stream_video(self):
-        """Send a continuous multipart MJPEG stream."""
+        """
+        Send a continuous multipart MJPEG stream.
+
+        Poll-based pacing: a frame is served only when the capture thread has
+        advanced frame_count (i.e. a genuinely NEW frame), so the delivery
+        rate matches the cameras' real capture rate instead of blindly
+        re-serving stale JPEGs at stream_fps.  While the camera is
+        disconnected the cached placeholder is re-sent at stream_fps so
+        clients still see the offline state update.
+        """
         self.send_response(200)
         self.send_header(
             'Content-Type',
@@ -565,19 +848,24 @@ class MJPEGHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         interval = 1.0 / max(1, self.stream_fps)
+        poll_period = min(interval, 0.05)
+        last_count = -1   # force-send the first available frame
 
         try:
             while True:
                 frame = self.camera.frame_jpeg
-                self.wfile.write(BOUNDARY + b'\r\n')
-                self.wfile.write(b'Content-Type: image/jpeg\r\n')
-                self.wfile.write(
-                    f'Content-Length: {len(frame)}\r\n'.encode())
-                self.wfile.write(b'\r\n')
-                self.wfile.write(frame)
-                self.wfile.write(b'\r\n')
-                self.wfile.flush()
-                time.sleep(interval)
+                count = self.camera.frame_count
+                if count != last_count or not self.camera.connected:
+                    self.wfile.write(BOUNDARY + b'\r\n')
+                    self.wfile.write(b'Content-Type: image/jpeg\r\n')
+                    self.wfile.write(
+                        f'Content-Length: {len(frame)}\r\n'.encode())
+                    self.wfile.write(b'\r\n')
+                    self.wfile.write(frame)
+                    self.wfile.write(b'\r\n')
+                    self.wfile.flush()
+                    last_count = count
+                time.sleep(poll_period)
         except (BrokenPipeError, ConnectionResetError):
             pass  # client disconnected — normal
 
@@ -671,25 +959,35 @@ class WebcamStreamerNode(Node):
 
         # ── Declare parameters ──────────────────────────────────────────
         self.declare_parameter('bind', '0.0.0.0')
-        self.declare_parameter('front_port', 8554)
-        self.declare_parameter('bottom_port', 8555)
-        self.declare_parameter('front_dev', '/dev/video0')
-        self.declare_parameter('bottom_dev', '/dev/video2')
+        self.declare_parameter('front_port', 8555)   # GCS STREAM_URL_FRONT  = :8555
+        self.declare_parameter('bottom_port', 8554)  # GCS STREAM_URL_BOTTOM = :8554
+        self.declare_parameter('front_dev', '/dev/video0')   # JETE-W7    — physically front-facing
+        self.declare_parameter('bottom_dev', '/dev/video2')  # Xiongmai — physically bottom-facing
+        # ── Per-camera resolution ──
+        self.declare_parameter('front_width', 1280)
+        self.declare_parameter('front_height', 720)
+        self.declare_parameter('bottom_width', 1280)
+        self.declare_parameter('bottom_height', 720)
+        # Legacy shared params (kept for backwards-compat; overridden per-camera above)
         self.declare_parameter('width', 1280)
         self.declare_parameter('height', 720)
         self.declare_parameter('fps', 30)
-        self.declare_parameter('jpeg_quality', 70)
+        self.declare_parameter('jpeg_quality', 80)
+        self.declare_parameter('bottom_jpeg_quality', 80)  # Higher quality for QR precision
         self.declare_parameter('publish_raw_images', True)
 
-        bind_ip     = self.get_parameter('bind').get_parameter_value().string_value
-        front_port  = self.get_parameter('front_port').get_parameter_value().integer_value
-        bottom_port = self.get_parameter('bottom_port').get_parameter_value().integer_value
-        front_dev   = self.get_parameter('front_dev').get_parameter_value().string_value
-        bottom_dev  = self.get_parameter('bottom_dev').get_parameter_value().string_value
-        width       = self.get_parameter('width').get_parameter_value().integer_value
-        height      = self.get_parameter('height').get_parameter_value().integer_value
-        fps         = self.get_parameter('fps').get_parameter_value().integer_value
-        quality     = self.get_parameter('jpeg_quality').get_parameter_value().integer_value
+        bind_ip      = self.get_parameter('bind').get_parameter_value().string_value
+        front_port   = self.get_parameter('front_port').get_parameter_value().integer_value
+        bottom_port  = self.get_parameter('bottom_port').get_parameter_value().integer_value
+        front_dev    = self.get_parameter('front_dev').get_parameter_value().string_value
+        bottom_dev   = self.get_parameter('bottom_dev').get_parameter_value().string_value
+        front_width  = self.get_parameter('front_width').get_parameter_value().integer_value
+        front_height = self.get_parameter('front_height').get_parameter_value().integer_value
+        bottom_width  = self.get_parameter('bottom_width').get_parameter_value().integer_value
+        bottom_height = self.get_parameter('bottom_height').get_parameter_value().integer_value
+        fps          = self.get_parameter('fps').get_parameter_value().integer_value
+        quality      = self.get_parameter('jpeg_quality').get_parameter_value().integer_value
+        bottom_quality = self.get_parameter('bottom_jpeg_quality').get_parameter_value().integer_value
 
         # ── Device availability check ───────────────────────────────────
         for dev, name in [(front_dev, 'Front'), (bottom_dev, 'Bottom')]:
@@ -701,12 +999,16 @@ class WebcamStreamerNode(Node):
                     f'will serve placeholder')
 
         # ── Create camera capture instances ─────────────────────────────
+        # Front camera (JETE-W7 /dev/video0): 1280×720 @ 30fps
         self._front_cam = CameraCapture(
             device=front_dev, label='Front Camera',
-            width=width, height=height, fps=fps, jpeg_quality=quality)
+            width=front_width, height=front_height, fps=fps,
+            jpeg_quality=quality)
+        # Bottom camera (Xiongmai /dev/video2): 1280×720 @ 30fps, higher JPEG quality for QR
         self._bottom_cam = CameraCapture(
             device=bottom_dev, label='Bottom Camera',
-            width=width, height=height, fps=fps, jpeg_quality=quality)
+            width=bottom_width, height=bottom_height, fps=fps,
+            jpeg_quality=bottom_quality)
 
         self._cameras = [self._front_cam, self._bottom_cam]
 
@@ -782,7 +1084,8 @@ class WebcamStreamerNode(Node):
 
         self.get_logger().info(
             f'WebcamStreamerNode started — '
-            f'{width}x{height} @ {fps}fps target, JPEG quality {quality}')
+            f'Front (JETE-W7 /dev/video0): {front_width}x{front_height} @ {fps}fps, Q{quality} | '
+            f'Bottom (Xiongmai /dev/video2): {bottom_width}x{bottom_height} @ {fps}fps, Q{bottom_quality}')
 
     def _log_status(self):
         """Periodically log camera status and statistics."""

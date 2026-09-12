@@ -485,7 +485,7 @@ class HookDetectionNode(Node):
 
         # ── Declare ROS parameters ──────────────────────────────────────
         self.declare_parameter('engine_path', '')
-        self.declare_parameter('conf_threshold', 0.40)
+        self.declare_parameter('conf_threshold', 0.70)
         self.declare_parameter('iou_threshold', 0.45)
         self.declare_parameter('class_names',
                                ['hook_body_grey', 'hook_body_white',

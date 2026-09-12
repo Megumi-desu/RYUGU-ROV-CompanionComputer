@@ -6,8 +6,12 @@ Captures video from two USB webcams and streams them over HTTP as MJPEG
 so the GCS laptop can display them in a browser, VLC, or OpenCV.
 
 Streams:
-  Front Camera → http://192.168.1.10:8554/video  (/dev/video0)
-  Bottom Camera → http://192.168.1.10:8555/video  (/dev/video1)
+  Front Camera → http://192.168.1.10:8555/video  (/dev/video0)
+  Bottom Camera → http://192.168.1.10:8554/video  (/dev/video1)
+
+Ports follow the GCS contract (STREAM_URL_FRONT = :8555, STREAM_URL_BOTTOM
+= :8554) — swapped 2026-09-12 from the old front=:8554 / bottom=:8555 layout
+which displayed both cameras cross-wired on the GCS panel.
 
 If a camera is disconnected, its stream serves a static placeholder
 image instead of crashing.
@@ -19,9 +23,9 @@ Usage:
   python3 webcam_streamer.py --width 640 --height 480 --fps 30
 
 View on GCS:
-  Browser:  http://192.168.1.10:8554/video
-  VLC:      vlc http://192.168.1.10:8554/video
-  OpenCV:   cv2.VideoCapture("http://192.168.1.10:8554/video")
+  Browser:  http://192.168.1.10:8555/video
+  VLC:      vlc http://192.168.1.10:8555/video
+  OpenCV:   cv2.VideoCapture("http://192.168.1.10:8555/video")
 
 Press Ctrl+C to stop.
 """
@@ -409,10 +413,10 @@ def main():
         description='RYUGU ROV — Dual Webcam MJPEG Streamer')
     parser.add_argument('--bind', default='0.0.0.0',
                         help='IP to bind HTTP servers (default: 0.0.0.0)')
-    parser.add_argument('--front-port', type=int, default=8554,
-                        help='Front camera stream port (default: 8554)')
-    parser.add_argument('--bottom-port', type=int, default=8555,
-                        help='Bottom camera stream port (default: 8555)')
+    parser.add_argument('--front-port', type=int, default=8555,
+                        help='Front camera stream port (default: 8555)')
+    parser.add_argument('--bottom-port', type=int, default=8554,
+                        help='Bottom camera stream port (default: 8554)')
     parser.add_argument('--front-dev', default='/dev/video0',
                         help='Front camera device (default: /dev/video0)')
     parser.add_argument('--bottom-dev', default='/dev/video1',

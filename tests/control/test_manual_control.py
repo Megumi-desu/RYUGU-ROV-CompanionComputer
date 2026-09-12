@@ -44,10 +44,12 @@ SAFETY FIRST
 
 DSHOT note (BLHeli_S DSHOT600 ESCs)
 -----------------------------------
-With MOT_PWM_TYPE=6 (DSHOT600), SERVO_OUTPUT_RAW reports DSHOT codes
-(0–2047, neutral ≈ 1047, disarmed = 0), NOT PWM microseconds.  BLHeli_S needs
-no throttle calibration, but each ESC must be flashed with bidirectional
-DSHOT for reversible thrust (values below neutral ~1047 = reverse).
+With MOT_PWM_TYPE=6 (DSHOT600), SERVO_OUTPUT_RAW reports the PWM-equivalent
+output in µs-scale 1000–2000 (neutral ≈ 1500), NOT raw DSHOT codes.  Values
+below ~1500 = reverse thrust, above ~1500 = forward (bidirectional DSHOT 3D
+flashed on BLHeli_S).  Disarmed = 0.  Raw DSHOT codes (0–2047, idle ≈ 1047)
+exist only on the ESC link.  Verified on bench: horizontals rest ~1497–1503
+at neutral; vertical pair rests ~1202 (symmetric bias, not an error).
 
 Usage
 -----
@@ -98,10 +100,50 @@ TARGET_COMPID  = 1
 
 # ── MANUAL_CONTROL ─────────────────────────────────────────────────────────
 DEFAULT_RATE = 25.0         # Hz — matches QGC joystick rate
-NEUTRAL      = (0, 0, 500, 0)   # x, y, z, r — z=500 is ArduSub neutral buoyancy
-NEUTRAL_Z    = 500
+NEUTRAL      = (0, 0, 0, 500)   # x, y, z, r — z=500 is NEUTRAL (zero thrust).
+                                 # ArduSub scales z bidirectionally: z→2*(z/1000)-1
+                                 #   z=0   → throttle -1 (FULL DOWN)
+                                 #   z=500 → throttle  0 (NEUTRAL hover)
+                                 #   z=1000→ throttle +1 (FULL UP)
+                                 # x, y, r are BIPOLAR [-1000..+1000]: 0=neutral.
+NEUTRAL_Z    = 500               # Neutral hover (ArduSub bidirectional throttle midpoint)
 MAX_INPUT    = 1000
 LINK_TIMEOUT = 2.0          # s without FCU heartbeat → stop sending control
+
+# ── Gripper servo constants (MAIN 1 = Servo channel 1) ─────────────────────
+GRIPPER_SERVO_CHANNEL = 1
+GRIPPER_PWM_OPEN      = 1300     # µs — full open
+GRIPPER_PWM_CLOSE     = 2000     # µs — full close
+GRIPPER_PWM_STOP      = 1500     # µs — stop / neutral
+MAV_CMD_DO_SET_SERVO  = 183
+
+# ── Joystick deadband helper ───────────────────────────────────────────────
+DEFAULT_DEADBAND_PCT  = 5.0      # % deadband around neutral
+
+
+def apply_deadband(value, neutral=0, deadband_pct=DEFAULT_DEADBAND_PCT, max_range=None):
+    """
+    Apply deadband around neutral with smooth linear rescaling.
+
+    Args:
+        value:        Raw input integer/float (e.g. -1000..+1000 or 0..1000)
+        neutral:      Neutral point (0 for x/y/r, 500 for z)
+        deadband_pct: Deadband as percentage of full range (e.g. 5.0)
+        max_range:    Full-scale range magnitude from neutral (default: 500 for z, 1000 for x/y/r)
+
+    Returns:
+        Adjusted value (int) with deadband applied and smoothly rescaled.
+    """
+    if max_range is None:
+        max_range = 500.0 if neutral == 500 else 1000.0
+    deadband = max_range * (deadband_pct / 100.0)
+    offset = value - neutral
+    if abs(offset) <= deadband:
+        return int(neutral)
+    sign = 1 if offset > 0 else -1
+    rescaled = (abs(offset) - deadband) * max_range / (max_range - deadband)
+    return int(neutral + sign * min(rescaled, max_range))
+
 
 # ── ArduSub mode numbers (custom_mode).  Mode 1 is ACRO internally;
 #    QGC labels it STABILIZE — same mapping as gcs_bridge_node.py MODE_MAP. ──
@@ -157,7 +199,10 @@ class ManualControlTester:
         self.scripted = args.scripted
         self.target_sysid = args.target_sysid
         self.step = args.step
-        self.amp = args.amp
+        self.amp = getattr(args, 'amp', 1000)
+        self.deadband_pct = getattr(args, 'deadband_pct', DEFAULT_DEADBAND_PCT)
+        self.servo_chan = getattr(args, 'servo_chan', GRIPPER_SERVO_CHANNEL)
+        self.servo_step = getattr(args, 'servo_step', 50)
 
         self._running = threading.Event()
         self._print_lock = threading.Lock()
@@ -169,6 +214,12 @@ class ManualControlTester:
         self._custom_mode = -1
         self._batt_v = 0.0
         self._servo_raw = [0] * 16
+
+        # ── Gripper / Servo state ──────────────────────────────────────
+        self._current_gripper_pwm = GRIPPER_PWM_STOP
+        self._servo_sweep_active = False
+        self._servo_sweep_dir = 1
+        self._last_servo_sweep_t = 0.0
 
         # ── Setpoints: [x, y, z, r] ────────────────────────────────────
         self._setpoints = list(NEUTRAL)
@@ -225,16 +276,24 @@ class ManualControlTester:
         Rate-limited MANUAL_CONTROL sender.
 
         Always transmits the current setpoints (neutral unless actively held),
-        paced with time.monotonic().  If the FCU link is lost, transmission
-        stops entirely so ArduSub's FS_GCS_ENABLE failsafe can take over.
+        filtered with apply_deadband and paced with time.monotonic(). If the FCU
+        link is lost, transmission stops entirely so ArduSub failsafe takes over.
         """
         interval = 1.0 / self.rate
         next_t = time.monotonic()
         warned = False
         while self._running.is_set():
             with self._state_lock:
-                x, y, z, r = self._setpoints
+                rx, ry, rz, rr = self._setpoints
                 link_ok = (time.monotonic() - self._last_fcu_hb) <= LINK_TIMEOUT
+
+            # Apply deadband filter to setpoints before sending
+            db = getattr(self, 'deadband_pct', DEFAULT_DEADBAND_PCT)
+            x = apply_deadband(rx, neutral=0, deadband_pct=db)
+            y = apply_deadband(ry, neutral=0, deadband_pct=db)
+            z = apply_deadband(rz, neutral=NEUTRAL_Z, deadband_pct=db)
+            r = apply_deadband(rr, neutral=0, deadband_pct=db)
+
             if not link_ok:
                 if not warned:
                     self._event(
@@ -252,6 +311,40 @@ class ManualControlTester:
                 time.sleep(delay)
             else:
                 next_t = time.monotonic()   # fell behind — resync the pacer
+
+    def send_gripper_pwm(self, pwm_us, label=""):
+        """Send MAV_CMD_DO_SET_SERVO (command 183) to control gripper/servo."""
+        pwm_us = max(1000, min(2000, int(pwm_us)))
+        with self._state_lock:
+            self._current_gripper_pwm = pwm_us
+        if self.dry_run:
+            self._event(f'{C.YELLOW}DRY-RUN: gripper command suppressed ({label} {pwm_us}µs).{C.RESET}')
+            return
+        chan = self.servo_chan
+        self._event(f'{C.CYAN}Gripper {label} → PWM={pwm_us}µs (Servo {chan}){C.RESET}')
+        self.conn.mav.command_long_send(
+            self.target_sysid, TARGET_COMPID,
+            MAV_CMD_DO_SET_SERVO, 0,
+            float(chan), float(pwm_us),
+            0, 0, 0, 0, 0)
+
+    def _tick_servo_sweep(self, now):
+        """Automatically sweep gripper servo between 1300µs and 2000µs when enabled."""
+        if not self._servo_sweep_active:
+            return
+        if now - self._last_servo_sweep_t < 0.15:
+            return
+        self._last_servo_sweep_t = now
+        curr = self._current_gripper_pwm
+        step = 50 * self._servo_sweep_dir
+        nxt = curr + step
+        if nxt >= GRIPPER_PWM_CLOSE:
+            nxt = GRIPPER_PWM_CLOSE
+            self._servo_sweep_dir = -1
+        elif nxt <= GRIPPER_PWM_OPEN:
+            nxt = GRIPPER_PWM_OPEN
+            self._servo_sweep_dir = 1
+        self.send_gripper_pwm(nxt, label=f"SWEEP {'▲' if self._servo_sweep_dir > 0 else '▼'}")
 
     # ═══════════════════════════════════════════════════════════════════
     #  Link bring-up
@@ -328,6 +421,8 @@ class ManualControlTester:
         if confirm and not self._confirm('ARM the vehicle? [y/N] ', timeout=10.0):
             self._event('Arm cancelled.')
             return
+        self._set_neutral()
+        self._event(f'{C.GREEN}Setpoints reset to NEUTRAL (0, 0, 500, 0) before arming.{C.RESET}')
         if self._custom_mode != MODE_MANUAL:
             self._event('Setting MANUAL mode first '
                         '(MANUAL_CONTROL only drives motors in MANUAL) ...')
@@ -502,12 +597,8 @@ class ManualControlTester:
     #  Setpoints (thread-safe, clamped)
     # ═══════════════════════════════════════════════════════════════════
     def _clamp_axis(self, idx, value):
-        if idx == 2:   # heave z: [500−amp, 500+amp] ∩ [0, 1000]
-            lo = max(0, NEUTRAL_Z - self.amp)
-            hi = min(MAX_INPUT, NEUTRAL_Z + self.amp)
-        else:          # x / y / r: [−amp, +amp]
-            lo, hi = -self.amp, self.amp
-        return max(lo, min(hi, value))
+        lo, hi = -self.amp, self.amp
+        return int(max(lo, min(hi, value)))
 
     def _set_axis(self, idx, delta):
         with self._state_lock:
@@ -574,6 +665,27 @@ class ManualControlTester:
             self._event(f'{C.GREEN}Setpoints → NEUTRAL (0, 0, 500, 0){C.RESET}')
         elif key == 'm':
             self._send_set_mode(MODE_MANUAL)
+        elif key == 'o':
+            self._servo_sweep_active = False
+            self.send_gripper_pwm(GRIPPER_PWM_OPEN, label="OPEN")
+        elif key == 'c':
+            self._servo_sweep_active = False
+            self.send_gripper_pwm(GRIPPER_PWM_CLOSE, label="CLOSE")
+        elif key == 'v':
+            self._servo_sweep_active = False
+            self.send_gripper_pwm(GRIPPER_PWM_STOP, label="STOP")
+        elif ch == '[':
+            self._servo_sweep_active = False
+            nxt = self._current_gripper_pwm - self.servo_step
+            self.send_gripper_pwm(nxt, label=f"STEP -{self.servo_step}")
+        elif ch == ']':
+            self._servo_sweep_active = False
+            nxt = self._current_gripper_pwm + self.servo_step
+            self.send_gripper_pwm(nxt, label=f"STEP +{self.servo_step}")
+        elif key == 'p':
+            self._servo_sweep_active = not self._servo_sweep_active
+            st = "ENABLED (1300<->2000µs)" if self._servo_sweep_active else "DISABLED"
+            self._event(f'{C.CYAN}Gripper Servo Sweep Test: {st}{C.RESET}')
         elif key == 'h':
             self._print_help()
 
@@ -606,10 +718,13 @@ class ManualControlTester:
             f'  {C.CYAN}w/s{C.RESET} surge fwd/back     {C.CYAN}a/d{C.RESET} sway left/right',
             f'  {C.CYAN}r/f{C.RESET} heave up/down      {C.CYAN}q/e{C.RESET} yaw left/right',
             f'  {C.CYAN}k{C.RESET}   all → neutral       {C.CYAN}m{C.RESET}   set MANUAL mode',
-            f'  {C.CYAN}SPACE{C.RESET} arm / disarm        {C.CYAN}h{C.RESET}   help',
-            f'  {C.CYAN}Ctrl+C{C.RESET} quit (neutral burst + disarm)',
+            f'  {C.CYAN}o{C.RESET}   gripper OPEN (1300) {C.CYAN}c{C.RESET}   gripper CLOSE (2000)',
+            f'  {C.CYAN}v{C.RESET}   gripper STOP (1500) {C.CYAN}p{C.RESET}   toggle SERVO SWEEP',
+            f'  {C.CYAN}[{C.RESET}   servo step -{self.servo_step}µs     {C.CYAN}]{C.RESET}   servo step +{self.servo_step}µs',
+            f'  {C.CYAN}SPACE{C.RESET} arm / disarm        {C.CYAN}h{C.RESET}   help   {C.CYAN}Ctrl+C{C.RESET} quit',
             f'{C.DIM}  step={self.step}  rate={self.rate:.0f} Hz  '
-            f'amplitude=±{self.amp}{C.RESET}',
+            f'amplitude=±{self.amp}  deadband={self.deadband_pct:.1f}%  '
+            f'servo_chan=Servo {self.servo_chan}{C.RESET}',
         ):
             self._event(line)
 
@@ -619,13 +734,13 @@ class ManualControlTester:
     def _build_script(self):
         amp = self.amp
         steps = (
-            ('neutral hold', 2.0,   0,   0, 500, 0),
-            ('surge +',      2.0, amp,   0, 500, 0),
-            ('neutral hold', 1.5,   0,   0, 500, 0),
-            ('sway +',       2.0,   0, amp, 500, 0),
-            ('neutral hold', 1.5,   0,   0, 500, 0),
-            ('yaw +',        2.0,   0,   0, 500, amp),
-            ('neutral hold', 2.0,   0,   0, 500, 0),
+            ('neutral hold', 2.0,   0,   0, 0, 0),
+            ('surge +',      2.0, amp,   0, 0, 0),
+            ('neutral hold', 1.5,   0,   0, 0, 0),
+            ('sway +',       2.0,   0, amp, 0, 0),
+            ('neutral hold', 1.5,   0,   0, 0, 0),
+            ('yaw +',        2.0,   0,   0, 0, amp),
+            ('neutral hold', 2.0,   0,   0, 0, 0),
         )
         self._script = {
             'steps': steps, 'idx': 0, 'step_start': 0.0,
@@ -691,6 +806,9 @@ class ManualControlTester:
             x, y, z, r = self._setpoints
             aux = self._servo_raw[THRUSTER_START_IDX:
                                   THRUSTER_START_IDX + THRUSTER_COUNT]
+            main_idx = self.servo_chan - 1
+            main_pwm = self._servo_raw[main_idx] if 0 <= main_idx < len(self._servo_raw) else 0
+            tgt_pwm = self._current_gripper_pwm
             link_ok = (time.monotonic() - self._last_fcu_hb) <= LINK_TIMEOUT
             mc = self._mc_sent
         arm_s = f'{C.RED}{C.BOLD}ARMED{C.RESET}' if armed else f'{C.GREEN}DISARMED{C.RESET}'
@@ -702,10 +820,12 @@ class ManualControlTester:
         script_s = ''
         if self._script is not None and self._script['phase'] == 'RUN':
             script_s = f' {C.CYAN}[{self._script["steps"][self._script["idx"]][0]}]{C.RESET}'
+        sweep_s = f' {C.YELLOW}[SWEEP]{C.RESET}' if self._servo_sweep_active else ''
         line = (f'{C.CYAN}[{mode}]{C.RESET} {arm_s} {link_s} '
                 f'{batt:5.1f}V  '
-                f'x={x:+05d} y={y:+05d} z={z:04d} r={r:+05d}  '
-                f'AUX[1-6]: {aux_s}  MC:{mc}{flow_s}{script_s}')
+                f'x={int(x):+05d} y={int(y):+05d} z={int(z):04d} r={int(r):+05d}  '
+                f'MAIN{self.servo_chan}:{main_pwm:>4}µs  '
+                f'AUX[1-6]: {aux_s}  MC:{mc}{flow_s}{script_s}{sweep_s}')
         with self._print_lock:
             sys.stdout.write('\r\x1b[K' + line)
             sys.stdout.flush()
@@ -739,7 +859,7 @@ class ManualControlTester:
                     f'(neutral).{C.RESET}')
 
     def run(self):
-        """Main loop: receive MAVLink, tick flow/script, poll keys, draw HUD."""
+        """Main loop: receive MAVLink, tick flow/script/servo sweep, poll keys, draw HUD."""
         last_status = 0.0
         while not self._quit:
             msg = self.conn.recv_match(blocking=True, timeout=0.05)
@@ -748,6 +868,7 @@ class ManualControlTester:
             now = time.monotonic()
             self._tick_flow(now)
             self._tick_scripted(now)
+            self._tick_servo_sweep(now)
             self._poll_keys()
             if now - last_status >= 0.25:
                 self._statusline()
@@ -809,9 +930,11 @@ def _parse_args():
         description='RYUGU ROV — standalone MANUAL_CONTROL MAVLink test '
                     '(pymavlink only, no ROS 2)',
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--endpoint', default='udpout:127.0.0.1:14555',
+    p.add_argument('--endpoint', default='udpin:127.0.0.1:14555',
                    help='MAVLink endpoint via mavlink-router '
-                        '(default: udpout:127.0.0.1:14555)')
+                        '(default: udpin:127.0.0.1:14555 — use udpin, NOT udpout; '
+                        'mavlink-router Normal-mode UDP endpoints only reply to '
+                        'clients that bind/listen, not connected sockets)')
     p.add_argument('--device', default=None,
                    help='Direct serial device instead of UDP (e.g. /dev/ttyACM0). '
                         'mavlink-router must be STOPPED first.')
@@ -831,6 +954,13 @@ def _parse_args():
     p.add_argument('--max-pct', type=int, default=None,
                    help='Amplitude clamp in %% (1–100). '
                         'Default: 100 interactive, 25 scripted.')
+    p.add_argument('--deadband-pct', type=float, default=DEFAULT_DEADBAND_PCT,
+                   help='Joystick deadband in %% around neutral '
+                        '(default: 5.0)')
+    p.add_argument('--servo-chan', type=int, default=GRIPPER_SERVO_CHANNEL,
+                   help='Servo channel for gripper testing (default: 1 = MAIN 1)')
+    p.add_argument('--servo-step', type=int, default=50,
+                   help='PWM increment step for [ and ] keys (default: 50)')
     p.add_argument('--dry-run', action='store_true',
                    help='Connect + telemetry only: never arm, '
                         'never send MANUAL_CONTROL.')
@@ -849,6 +979,11 @@ def _parse_args():
         p.error('--scripted requires --auto-arm (scripted mode is non-interactive)')
 
     args.rate = max(10.0, min(50.0, args.rate))
+    args.deadband_pct = max(0.0, min(25.0, args.deadband_pct))
+    if not 1 <= args.servo_chan <= 16:
+        p.error('--servo-chan must be 1..16')
+    if not 10 <= args.servo_step <= 500:
+        p.error('--servo-step must be 10..500')
     if not 1 <= args.step <= 500:
         p.error('--step must be 1..500')
 
@@ -871,7 +1006,8 @@ def _print_banner(args):
     print(f'  Identity:  sysid={args.sysid} compid={args.compid} '
           f'(QGC-mirror — ArduSub arm authority)')
     print(f'  Rate:      {args.rate:.0f} Hz MANUAL_CONTROL  |  mode: {mode}')
-    print(f'  Amplitude: ±{args.amp}  |  neutral = (0, 0, 500, 0)')
+    print(f'  Amplitude: ±{args.amp}  |  deadband: {args.deadband_pct:.1f}%  |  neutral = (0, 0, 500, 0)')
+    print(f'  Gripper:   o=Open (1300µs) | c=Close (2000µs) | v=Stop (1500µs) on MAIN 1')
     print(f'{C.BOLD}{"─" * 64}{C.RESET}')
     print(f'  {C.RED}{C.BOLD}SAFETY:{C.RESET} bench test #1 with ESC power OFF — '
           f'verify SERVO_OUTPUT_RAW')
