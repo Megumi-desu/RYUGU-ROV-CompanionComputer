@@ -140,27 +140,35 @@ def generate_launch_description():
     )
     front_dev_arg = DeclareLaunchArgument(
         'front_dev', default_value='/dev/video0',
-        description='Front camera V4L2 device.',
+        description='Front camera V4L2 device (JETE-W7 — physically front-facing).',
     )
     bottom_dev_arg = DeclareLaunchArgument(
         'bottom_dev', default_value='/dev/video2',
-        description='Bottom camera V4L2 device.',
+        description='Bottom camera V4L2 device (Xiongmai — physically bottom-facing).',
     )
     front_port_arg = DeclareLaunchArgument(
-        'front_port', default_value='8554',
-        description='Front camera HTTP stream port.',
+        'front_port', default_value='8555',
+        description='Front camera HTTP stream port (matches GCS STREAM_URL_FRONT).',
     )
     bottom_port_arg = DeclareLaunchArgument(
-        'bottom_port', default_value='8555',
-        description='Bottom camera HTTP stream port.',
+        'bottom_port', default_value='8554',
+        description='Bottom camera HTTP stream port (matches GCS STREAM_URL_BOTTOM).',
     )
     cam_width_arg = DeclareLaunchArgument(
-        'cam_width', default_value='640',
-        description='Camera capture width.',
+        'cam_width', default_value='1280',
+        description='Front camera (JETE) capture width.',
     )
     cam_height_arg = DeclareLaunchArgument(
-        'cam_height', default_value='480',
-        description='Camera capture height.',
+        'cam_height', default_value='720',
+        description='Front camera (JETE) capture height.',
+    )
+    bottom_cam_width_arg = DeclareLaunchArgument(
+        'bottom_cam_width', default_value='1280',
+        description='Bottom camera (Xiongmai) capture width — HD for better QR precision.',
+    )
+    bottom_cam_height_arg = DeclareLaunchArgument(
+        'bottom_cam_height', default_value='720',
+        description='Bottom camera (Xiongmai) capture height — HD for better QR precision.',
     )
     cam_fps_arg = DeclareLaunchArgument(
         'cam_fps', default_value='30',
@@ -173,7 +181,7 @@ def generate_launch_description():
         description='Enable the TensorRT hook detection node.',
     )
     hook_conf_arg = DeclareLaunchArgument(
-        'hook_conf_threshold', default_value='0.50',
+        'hook_conf_threshold', default_value='0.70',
         description='Hook detection confidence threshold (dynamically '
                     'tunable: ros2 param set /hook_detection_node '
                     'conf_threshold 0.40).',
@@ -288,15 +296,20 @@ def generate_launch_description():
         respawn_delay=5.0,
         condition=IfCondition(LaunchConfiguration('enable_webcam')),
         parameters=[{
-            'bind':         '0.0.0.0',
-            'front_port':   LaunchConfiguration('front_port'),
-            'bottom_port':  LaunchConfiguration('bottom_port'),
-            'front_dev':    LaunchConfiguration('front_dev'),
-            'bottom_dev':   LaunchConfiguration('bottom_dev'),
-            'width':        LaunchConfiguration('cam_width'),
-            'height':       LaunchConfiguration('cam_height'),
-            'fps':          LaunchConfiguration('cam_fps'),
-            'jpeg_quality':   70,
+            'bind':               '0.0.0.0',
+            'front_port':         LaunchConfiguration('front_port'),
+            'bottom_port':        LaunchConfiguration('bottom_port'),
+            'front_dev':          LaunchConfiguration('front_dev'),
+            'bottom_dev':         LaunchConfiguration('bottom_dev'),
+            # Front camera (JETE): 1280×720 @ 30fps
+            'front_width':        LaunchConfiguration('cam_width'),
+            'front_height':       LaunchConfiguration('cam_height'),
+            # Bottom camera (Xiongmai): 1280×720 HD for QR precision
+            'bottom_width':       LaunchConfiguration('bottom_cam_width'),
+            'bottom_height':      LaunchConfiguration('bottom_cam_height'),
+            'fps':                LaunchConfiguration('cam_fps'),
+            'jpeg_quality':       80,
+            'bottom_jpeg_quality': 80,
             'publish_raw_images': True,
         }],
     )
@@ -376,6 +389,8 @@ def generate_launch_description():
         bottom_port_arg,
         cam_width_arg,
         cam_height_arg,
+        bottom_cam_width_arg,
+        bottom_cam_height_arg,
         cam_fps_arg,
         # ── Hook detection args ──
         enable_hook_detection_arg,

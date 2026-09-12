@@ -30,9 +30,9 @@ ardusub:
 # ── Gripper Configuration (Reference — set via Pixhawk parameters) ─────────
 # For direct MAV_CMD_DO_SET_SERVO (Command 183) via MAVROS:
 # Set SERVO1_FUNCTION = 0 so ServoRelayEvents does not reject Channel 1 as "in use".
-# SERVO1_MIN   = 1000
-# SERVO1_MAX   = 2000
-# SERVO1_TRIM  = 1500
+# SERVO1_MIN   = 1300  (Gripper Open)
+# SERVO1_MAX   = 2000  (Gripper Close)
+# SERVO1_TRIM  = 1500  (Gripper Stop / Neutral)
 
 # ── Protocol & Safety System Parameters (Reference) ────────────────────────
 # SYSID_MYGCS      = 255  (Matches MAVROS GCS System ID)

@@ -20,8 +20,10 @@ set -eo pipefail
 readonly ROS_SETUP="/opt/ros/humble/setup.bash"
 readonly WS_SETUP="/home/icad/RYUGU-ROV-CompanionComputer/install/setup.bash"
 
-readonly FRONT_CAM="/dev/v4l/by-id/usb-Xiongmai_web_camera_12345678-video-index0"
-readonly BOTTOM_CAM="/dev/v4l/by-id/usb-JETE-W7_JETE-W7_202503051344-video-index0"
+# Persistent /dev/v4l/by-id paths — JETE-W7 is physically front-facing
+# (clear lens), Xiongmai is physically bottom-facing (sealed dome).
+readonly FRONT_CAM="/dev/v4l/by-id/usb-JETE-W7_JETE-W7_202503051344-video-index0"
+readonly BOTTOM_CAM="/dev/v4l/by-id/usb-Xiongmai_web_camera_12345678-video-index0"
 
 # ── Log helper ──────────────────────────────────────────────────────────────
 log() { echo "[ryugu-rov] $(date '+%Y-%m-%dT%H:%M:%S%z') — $*" >&2; }

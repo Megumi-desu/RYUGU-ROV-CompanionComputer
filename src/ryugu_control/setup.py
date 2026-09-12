@@ -41,6 +41,8 @@ setup(
             'test_arming_mode = ryugu_control.test_arming_mode:main',
             'test_thrusters_gripper = ryugu_control.test_thrusters_gripper:main',
             'test_sensor_reader = ryugu_control.test_sensor_reader:main',
+            'qgc_signal_monitor = ryugu_control.qgc_signal_monitor:main',
+            'ryugu_autonomy_node = ryugu_control.ryugu_autonomy_node:main',
         ],
     },
 )
