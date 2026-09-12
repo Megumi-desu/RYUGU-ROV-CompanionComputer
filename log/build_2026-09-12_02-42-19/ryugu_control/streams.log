@@ -1,0 +1,24 @@
+[4.044s] Invoking command in '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build --no-deps symlink_data
+[5.214s] running develop
+[5.901s] running egg_info
+[5.950s] writing ryugu_control.egg-info/PKG-INFO
+[5.951s] writing dependency_links to ryugu_control.egg-info/dependency_links.txt
+[5.952s] writing entry points to ryugu_control.egg-info/entry_points.txt
+[5.953s] writing requirements to ryugu_control.egg-info/requires.txt
+[5.954s] writing top-level names to ryugu_control.egg-info/top_level.txt
+[6.057s] reading manifest file 'ryugu_control.egg-info/SOURCES.txt'
+[6.059s] writing manifest file 'ryugu_control.egg-info/SOURCES.txt'
+[6.115s] running build_ext
+[6.115s] Creating /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu-control.egg-link (link to .)
+[6.118s] Installing gcs_bridge_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.119s] Installing hook_detection_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.119s] Installing qgc_signal_monitor script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.120s] Installing ryugu_autonomy_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.120s] Installing test_arming_mode script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.121s] Installing test_sensor_reader script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.124s] Installing test_thrusters_gripper script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.124s] Installing webcam_streamer script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control
+[6.126s] 
+[6.126s] Installed /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control
+[6.127s] running symlink_data
+[6.288s] Invoked command in '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control' returned '0': PYTHONPATH=/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build --no-deps symlink_data

@@ -313,9 +313,15 @@ class CameraCapture:
         smooth frames (lens covered, black underwater void).  The earlier
         QRCodeDetector-based gate was dropped: it false-negatived exactly
         the small/distant SIDE-B/C labels this stack must catch.
+
+        Threshold lowered 4.0 → 1.0 (2026-09-12): a large QR code held
+        close (~10 cm) fills most of the frame with two solid regions
+        (black modules + white background); the mean Laplacian energy can
+        fall below 4.0 even though the QR is perfectly clear, causing the
+        whole pipeline to be skipped before it has a chance to run.
         """
         small = gray[::2, ::2]
-        return float(cv2.Laplacian(small, cv2.CV_64F).var()) >= 4.0
+        return float(cv2.Laplacian(small, cv2.CV_64F).var()) >= 1.0
 
     def _decode_qr_pipeline(self, gray, fast=True):
         """
@@ -328,23 +334,34 @@ class CameraCapture:
         QRCodeDetector-based gates was tried but each false-negatived the
         small labels this stack must catch — edge energy cannot.
 
-        Both cameras get CLAHE contrast normalisation first (compensates for
-        the pool's poor, uneven indoor lighting).  Each camera then follows
-        its own enhancement chain matched to its lens mounting:
+        Front camera pipeline (JETE-W7 /dev/video0 — 2026-09-12 revision):
 
-          Front (JETE-W7 /dev/video0 — clear lens, low light):
-              CLAHE → sharpen → MULTI-SCALE pyzbar sweep.
-              pyzbar runs at 2× upscale (small/distant codes), native 1×,
-              and 0.5× downscale (large codes held close).  Falls back to
-              _crop_zoom_decode: QRCodeDetector locates the code region,
-              which is cropped, upscaled 4× and re-decoded.  All
-              coordinates are scaled back to display-frame space.
+          Pass 0 — plain pyzbar on RAW grayscale (Option D):
+              No preprocessing at all.  A large, clear QR code held ~10 cm
+              away decodes trivially from the raw frame; CLAHE+sharpen were
+              HURTING detection by over-processing an already-good image.
+              This is by far the cheapest path and handles the close-up case
+              that had been consistently failing.
 
-          Bottom (Xiongmai /dev/video2 — sealed dome, glare/haze):
-              CLAHE → adaptive threshold → pyzbar → native pyzbar → same
+          Pass 1 — pyzbar on CLAHE-only (Option A):
+              Contrast normalisation without the aggressive sharpen kernel.
+              The 3×3 sharpen clips pixel values at 0/255 on high-contrast
+              transitions (QR finder-pattern edges), corrupting the modules
+              that pyzbar relies on.  CLAHE alone lifts exposure in dim pool
+              conditions without introducing clipping artefacts.
+              Multi-scale sweep: 2× upscale (distant small codes), native
+              1×, 0.5× downscale (large codes close-up).
+
+          Pass 2 — CLAHE → sharpen → multi-scale (original pipeline):
+              Kept as last resort for edge cases (low-contrast, very distant
+              codes) where the original enhancement was actually needed.
+
+          Pass 3 — _crop_zoom_decode fallback.
+
+        Bottom camera pipeline (Xiongmai /dev/video2 — unchanged):
+              CLAHE → adaptive threshold → pyzbar → native pyzbar →
               _crop_zoom_decode fallback.  Adaptive thresholding binarises
-              the QR pattern so dome glare doesn't wash out the finder
-              cells.  No upscale — coordinates stay in display space.
+              the QR pattern through dome glare/haze.
 
         Returns:
             List of overlay dicts in display-frame coordinates (see
@@ -352,28 +369,45 @@ class CameraCapture:
         """
         if fast and not self._fast_detect(gray):
             return []
-        frame_qr = self._clahe.apply(gray)
 
         if 'front' in self.label.lower():
-            # ── Front: CLAHE → sharpen → multi-scale pyzbar ──────────────
+            # ── Pass 0: raw pyzbar — no preprocessing (Option D) ─────────
+            # For a large, clear, well-focused QR code (~10 cm away) this
+            # is ALL that is needed.  CLAHE+sharpen were actively preventing
+            # detection by over-processing an already-good image.
+            overlays = [
+                self._pyzbar_to_overlay(obj, 1.0)
+                for obj in pyzbar_decode(gray)]
+            if overlays:
+                return overlays
+
+            # ── Pass 1: CLAHE only — no sharpen (Option A) ───────────────
+            # Handles dim/uneven lighting without clipping QR module edges.
+            # Multi-scale sweep covers both distant (2×) and large/close
+            # (0.5×) codes.
+            frame_qr = self._clahe.apply(gray)
+            up2_c = cv2.resize(frame_qr, None, fx=2.0, fy=2.0,
+                               interpolation=cv2.INTER_CUBIC)
+            down05_c = cv2.resize(frame_qr, None, fx=0.5, fy=0.5,
+                                  interpolation=cv2.INTER_AREA)
+            for img, back in ((up2_c, 0.5), (frame_qr, 1.0), (down05_c, 2.0)):
+                overlays = [
+                    self._pyzbar_to_overlay(obj, back)
+                    for obj in pyzbar_decode(img)]
+                if overlays:
+                    return overlays
+
+            # ── Pass 2: CLAHE → sharpen → multi-scale (original) ─────────
+            # Kept as last resort for distant/low-contrast codes.
             sharpen_kernel = np.array(
                 [[-1, -1, -1],
                  [-1,  9, -1],
                  [-1, -1, -1]], dtype=np.float32)
             sharp = cv2.filter2D(frame_qr, -1, sharpen_kernel)
-
-            # PyZBar sweep across three scales so BOTH small/distant codes
-            # and large/close-up codes decode: 2× (≈4× pixel area), native
-            # 1×, and 0.5× downscale.  A close QR held at ~20-40 cm fills so
-            # much of the frame that the 2× image pushes it off-frame and
-            # every attempt fails — the 1× and 0.5× passes cover that case
-            # (seen 2026-09-12: intermittent decodes because the close/hold
-            # distance put the code outside the single 2× window).
             up2 = cv2.resize(sharp, None, fx=2.0, fy=2.0,
                              interpolation=cv2.INTER_CUBIC)
             down05 = cv2.resize(sharp, None, fx=0.5, fy=0.5,
                                 interpolation=cv2.INTER_AREA)
-
             for img, back in ((up2, 0.5), (sharp, 1.0), (down05, 2.0)):
                 overlays = [
                     self._pyzbar_to_overlay(obj, back)
@@ -381,9 +415,8 @@ class CameraCapture:
                 if overlays:
                     return overlays
 
-            # ── Front regional fallback: detect → crop → 4× zoom ────────
-            overlays = self._crop_zoom_decode(sharp)
-            return overlays
+            # ── Pass 3: regional detect → crop → 4× zoom fallback ────────
+            return self._crop_zoom_decode(sharp)
 
         # ── Bottom: CLAHE → adaptive threshold → pyzbar ─────────────────
         thr = cv2.adaptiveThreshold(
