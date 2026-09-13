@@ -1,0 +1,79 @@
+[0.000000] (-) TimerEvent: {}
+[0.000234] (ryugu_control) JobQueued: {'identifier': 'ryugu_control', 'dependencies': OrderedDict()}
+[0.001031] (ryugu_control) JobStarted: {'identifier': 'ryugu_control'}
+[0.099145] (-) TimerEvent: {}
+[0.199515] (-) TimerEvent: {}
+[0.299858] (-) TimerEvent: {}
+[0.400249] (-) TimerEvent: {}
+[0.500599] (-) TimerEvent: {}
+[0.600939] (-) TimerEvent: {}
+[0.701273] (-) TimerEvent: {}
+[0.801656] (-) TimerEvent: {}
+[0.902186] (-) TimerEvent: {}
+[1.002612] (-) TimerEvent: {}
+[1.103081] (-) TimerEvent: {}
+[1.203423] (-) TimerEvent: {}
+[1.303772] (-) TimerEvent: {}
+[1.404244] (-) TimerEvent: {}
+[1.504674] (-) TimerEvent: {}
+[1.605108] (-) TimerEvent: {}
+[1.705534] (-) TimerEvent: {}
+[1.805973] (-) TimerEvent: {}
+[1.906407] (-) TimerEvent: {}
+[2.006840] (-) TimerEvent: {}
+[2.107280] (-) TimerEvent: {}
+[2.207703] (-) TimerEvent: {}
+[2.308135] (-) TimerEvent: {}
+[2.408555] (-) TimerEvent: {}
+[2.509002] (-) TimerEvent: {}
+[2.609448] (-) TimerEvent: {}
+[2.709895] (-) TimerEvent: {}
+[2.810343] (-) TimerEvent: {}
+[2.910757] (-) TimerEvent: {}
+[3.011205] (-) TimerEvent: {}
+[3.069652] (ryugu_control) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'develop', '--editable', '--build-directory', '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/build', '--no-deps', 'symlink_data'], 'cwd': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control', 'env': {'VNCDESKTOP': 'ubuntu:1 (icad)', 'LESSOPEN': '| /usr/bin/lesspipe %s', 'CHROME_DEVTOOLS_MCP_JS': '/home/icad/Downloads/Antigravity-arm64/resources/app.asar.unpacked/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js', 'USER': 'icad', 'ANTIGRAVITY_SOURCE_METADATA': '{"tool":{"conversationId":"185cbfcd-f6f4-4220-8305-f621cb28c745", "stepIndex":89, "toolCall":{"id":"toolu_vrtx_01KMpiuZoNSjM3mYsCLWDXfH", "name":"run_command", "argumentsJson":"{\\"BypassSandbox\\":true,\\"CommandLine\\":\\"cd /home/icad/RYUGU-ROV-CompanionComputer \\\\u0026\\\\u0026 source /opt/ros/humble/setup.bash \\\\u0026\\\\u0026 colcon build --symlink-install --packages-select ryugu_control 2\\\\u003e\\\\u00261 | tail -5\\",\\"Cwd\\":\\"/home/icad/RYUGU-ROV-CompanionComputer\\",\\"WaitMsBeforeAsync\\":60000,\\"toolAction\\":\\"Building ryugu_control\\",\\"toolSummary\\":\\"Rebuild ROS package\\"}", "originalName":"run_command"}}}', 'SSH_CLIENT': '192.168.1.100 62800 22', 'ANTIGRAVITY_SAFECLIS_DIR': '/home/icad/.gemini/antigravity/bin/safeclis', 'SSH_AGENT_PID': '2591', 'XDG_SESSION_TYPE': 'x11', 'SHLVL': '2', 'LD_LIBRARY_PATH': '/usr/local/cuda/lib64:/usr/local/cuda-12.6/lib64:/usr/local/cuda/lib64:/usr/local/cuda-12.6/lib64:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/aarch64-linux-gnu:/opt/ros/humble/lib:/usr/local/cuda/lib64:/usr/local/cuda-12.6/lib64:', 'MOTD_SHOWN': 'pam', 'HOME': '/home/icad', 'CHROME_DESKTOP': 'antigravity.desktop', 'OLDPWD': '/home/icad/RYUGU-ROV-CompanionComputer', 'DISABLE_AUTO_UPDATE': 'true', 'DESKTOP_SESSION': 'xfce', 'SSH_TTY': '/dev/pts/0', 'JETSON_L4T': '36.5.2', 'ROS_PYTHON_VERSION': '3', 'JETSON_MODEL': 'NVIDIA Jetson Orin Nano Engineering Reference Developer Kit Super', 'PAGER': 'cat', 'DBUS_SESSION_BUS_ADDRESS': 'unix:abstract=/tmp/dbus-rCI6tdrb0O,guid=c0246f1a7260180c41466e296aa631cd', 'COLORTERM': 'truecolor', 'ANTIGRAVITY_AGENT': '1', 'AGY_BROWSER_ACTIVE_PORT_FILE': '/home/icad/.config/Antigravity/DevToolsActivePort', 'ROS_DISTRO': 'humble', 'ZSH_TMUX_AUTOSTARTED': 'true', 'LOGNAME': 'icad', 'AGY_BROWSER_WS_URL': 'ws://127.0.0.1:38131/devtools/browser/6092214a-e0c8-4d07-b41d-50b3a3effbcd', 'JETSON_MODULE': 'NVIDIA Jetson Orin Nano (Developer kit)', 'JETSON_SERIAL_NUMBER': '1794325019965', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'TERM': 'dumb', 'XDG_SESSION_ID': '1', 'FC_FONTATIONS': '1', 'ROS_LOCALHOST_ONLY': '0', 'PATH': '/home/icad/.gemini/antigravity/bin:/home/icad/.config/Antigravity/bin:/home/icad/.local/bin:/home/icad/.opencode/bin:/home/icad/.opencode/bin:/usr/local/cuda/bin:/usr/local/cuda-12.6/bin:/home/icad/.opencode/bin:/home/icad/.opencode/bin:/usr/local/cuda/bin:/usr/local/cuda-12.6/bin:/home/icad/.local/bin:/home/icad/.opencode/bin:/home/icad/.opencode/bin:/opt/ros/humble/bin:/usr/local/cuda/bin:/usr/local/cuda-12.6/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'SESSION_MANAGER': 'local/ubuntu:@/tmp/.ICE-unix/2531,unix/ubuntu:/tmp/.ICE-unix/2531', 'XDG_MENU_PREFIX': 'xfce-', 'GNOME_TERMINAL_SCREEN': '/org/gnome/Terminal/screen/618100b3_5d90_481e_8988_a10d911296cf', 'XDG_RUNTIME_DIR': '/run/user/1000', 'GDK_BACKEND': 'x11', 'DISPLAY': ':1.0', 'LANG': 'en_US.UTF-8', 'XDG_CURRENT_DESKTOP': 'XFCE', 'ANTIGRAVITY_CONVERSATION_ID': '185cbfcd-f6f4-4220-8305-f621cb28c745', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'JETSON_SOC': 'tegra234', 'GNOME_TERMINAL_SERVICE': ':1.60', 'SSH_AUTH_SOCK': '/tmp/ssh-XXXXXXKXV4hr/agent.2590', 'AMENT_PREFIX_PATH': '/opt/ros/humble', 'ANTIGRAVITY_PROJECT_ID': '666bd4e7-1b28-4e31-b8d5-dbd6e5afdbce', 'SHELL': '/bin/bash', 'ANTIGRAVITY_LS_ADDRESS': 'localhost:42595', 'NO_AT_BRIDGE': '1', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'GIT_PAGER': 'cat', 'ANTIGRAVITY_TRAJECTORY_ID': '55bcf341-e4bd-4223-b783-06d96e9872bb', 'JETSON_CUDA_ARCH_BIN': '8.7', 'PWD': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control', 'LC_ALL': 'en_US.UTF-8', 'XDG_CONFIG_DIRS': '/etc/xdg/xdg-xfce:/etc/xdg', 'ZSH_TMUX_AUTOSTART': 'false', 'SSH_CONNECTION': '192.168.1.100 62800 192.168.1.10 22', 'XDG_DATA_DIRS': '/usr/share/xfce:/usr/share/gnome:/home/icad/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/var/lib/snapd/desktop:/usr/share:/usr/local/share::/usr/share', 'PYTHONPATH': '/home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1', 'VTE_VERSION': '6800', 'ANTIGRAVITY_CSRF_TOKEN': '54afaa1c-912d-4831-ac0a-205ea621b2f3', 'JETSON_JETPACK': '', 'JETSON_P_NUMBER': 'p3767-0005'}, 'shell': False}
+[3.111333] (-) TimerEvent: {}
+[3.211633] (-) TimerEvent: {}
+[3.311994] (-) TimerEvent: {}
+[3.412493] (-) TimerEvent: {}
+[3.512924] (-) TimerEvent: {}
+[3.613330] (-) TimerEvent: {}
+[3.713714] (-) TimerEvent: {}
+[3.814086] (-) TimerEvent: {}
+[3.914458] (-) TimerEvent: {}
+[3.988814] (ryugu_control) StdoutLine: {'line': b'running develop\n'}
+[4.014614] (-) TimerEvent: {}
+[4.114991] (-) TimerEvent: {}
+[4.215412] (-) TimerEvent: {}
+[4.315788] (-) TimerEvent: {}
+[4.416195] (-) TimerEvent: {}
+[4.516583] (-) TimerEvent: {}
+[4.616957] (-) TimerEvent: {}
+[4.681948] (ryugu_control) StdoutLine: {'line': b'running egg_info\n'}
+[4.717108] (-) TimerEvent: {}
+[4.729156] (ryugu_control) StdoutLine: {'line': b'writing ryugu_control.egg-info/PKG-INFO\n'}
+[4.730609] (ryugu_control) StdoutLine: {'line': b'writing dependency_links to ryugu_control.egg-info/dependency_links.txt\n'}
+[4.731268] (ryugu_control) StdoutLine: {'line': b'writing entry points to ryugu_control.egg-info/entry_points.txt\n'}
+[4.731778] (ryugu_control) StdoutLine: {'line': b'writing requirements to ryugu_control.egg-info/requires.txt\n'}
+[4.732161] (ryugu_control) StdoutLine: {'line': b'writing top-level names to ryugu_control.egg-info/top_level.txt\n'}
+[4.817271] (-) TimerEvent: {}
+[4.849223] (ryugu_control) StdoutLine: {'line': b"reading manifest file 'ryugu_control.egg-info/SOURCES.txt'\n"}
+[4.854319] (ryugu_control) StdoutLine: {'line': b"writing manifest file 'ryugu_control.egg-info/SOURCES.txt'\n"}
+[4.909341] (ryugu_control) StdoutLine: {'line': b'running build_ext\n'}
+[4.910955] (ryugu_control) StdoutLine: {'line': b'Creating /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/python3.10/site-packages/ryugu-control.egg-link (link to .)\n'}
+[4.913862] (ryugu_control) StdoutLine: {'line': b'Installing gcs_bridge_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.914510] (ryugu_control) StdoutLine: {'line': b'Installing hook_detection_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.914838] (ryugu_control) StdoutLine: {'line': b'Installing qgc_signal_monitor script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.915155] (ryugu_control) StdoutLine: {'line': b'Installing ryugu_autonomy_node script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.915509] (ryugu_control) StdoutLine: {'line': b'Installing test_arming_mode script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.915828] (ryugu_control) StdoutLine: {'line': b'Installing test_sensor_reader script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.916329] (ryugu_control) StdoutLine: {'line': b'Installing test_thrusters_gripper script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.916697] (ryugu_control) StdoutLine: {'line': b'Installing webcam_streamer script to /home/icad/RYUGU-ROV-CompanionComputer/install/ryugu_control/lib/ryugu_control\n'}
+[4.917898] (ryugu_control) StdoutLine: {'line': b'\n'}
+[4.918154] (-) TimerEvent: {}
+[4.918201] (ryugu_control) StdoutLine: {'line': b'Installed /home/icad/RYUGU-ROV-CompanionComputer/build/ryugu_control\n'}
+[4.918347] (ryugu_control) StdoutLine: {'line': b'running symlink_data\n'}
+[5.018378] (-) TimerEvent: {}
+[5.029702] (ryugu_control) CommandEnded: {'returncode': 0}
+[5.072935] (ryugu_control) JobEnded: {'identifier': 'ryugu_control', 'rc': 0}
+[5.074342] (-) EventReactorShutdown: {}
